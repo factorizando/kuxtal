@@ -5,28 +5,30 @@ await mkdir("public/icons", { recursive: true });
 
 const svg = `
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" rx="96" fill="#689EC2"/>
-  
-  <!-- K esquina superior izquierda -->
-  <text x="52" y="112" font-family="system-ui, sans-serif" font-size="90"
-    font-weight="700" fill="white" opacity="0.75">K</text>
 
-  <!-- Tallo -->
-  <line x1="256" y1="420" x2="256" y2="240"
-    stroke="white" stroke-width="18" stroke-linecap="round"/>
+  <!-- Fondo -->
+  <rect width="512" height="512" fill="#689EC2"/>
 
-  <!-- Hoja izquierda -->
-  <path d="M 256 330 Q 180 300 185 240 Q 228 268 256 330"
-    fill="white" opacity="0.95"/>
+  <!-- K blanca sólida — centrada, con espacio arriba y abajo -->
+  <text
+    x="256" y="322"
+    text-anchor="middle"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="210"
+    font-weight="700"
+    fill="#F4F2ED">K</text>
 
-  <!-- Hoja derecha -->
-  <path d="M 256 300 Q 332 270 327 210 Q 284 238 256 300"
-    fill="white" opacity="0.95"/>
+  <!-- Ave estilo gaviota — esquina superior derecha -->
+  <path d="M 320 148 Q 358 92 396 148"
+    stroke="#F4F2ED" stroke-width="22" fill="none" stroke-linecap="round"/>
+  <path d="M 396 148 Q 434 92 468 142"
+    stroke="#F4F2ED" stroke-width="22" fill="none" stroke-linecap="round"/>
 
-  <!-- Línea de pulso -->
-  <path d="M 80 420 L 140 420 L 165 370 L 200 470 L 230 390 L 256 420 L 432 420"
-    stroke="white" stroke-width="14" fill="none"
-    stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+  <!-- ECG — claramente debajo de la K -->
+  <path d="M 28 390 L 148 390 L 182 355 L 218 412 L 250 372 L 278 390 L 484 390"
+    stroke="#F4F2ED" stroke-width="16" fill="none"
+    stroke-linecap="round" stroke-linejoin="round"/>
+
 </svg>
 `;
 
@@ -41,4 +43,4 @@ await sharp(svgBuffer)
   .png()
   .toFile("public/icons/icon-512.png");
 
-console.log("✅ Íconos generados correctamente");
+console.log("✅ Íconos generados: icon-192.png e icon-512.png");
