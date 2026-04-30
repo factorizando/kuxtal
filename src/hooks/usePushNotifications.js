@@ -42,10 +42,14 @@ export function usePushNotifications(userId) {
     });
 
     // Guardar suscripción en Supabase
-    await supabase.from("push_subscriptions").upsert({
-      user_id: userId,
-      subscription: sub.toJSON(),
-    });
+    await supabase.from("push_subscriptions").upsert(
+      {
+        user_id: userId,
+        endpoint: sub.endpoint,
+        subscription: sub.toJSON(),
+      },
+      { onConflict: "user_id" },
+    );
 
     setSubscribed(true);
   }
