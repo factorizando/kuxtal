@@ -182,16 +182,38 @@ function RangeInput({ label, value, min, max, unit, onChange, color }) {
   );
 }
 
-export default function MainApp({ user, profile, signOut }) {
+export default function MainApp({
+  user,
+  profile,
+  signOut,
+  targetUserId,
+  viewingPatient,
+  onOpenProfile,
+  myRoleInGroup,
+}) {
   const { gluReadings, bpReadings, loading, addGlucose, addBP } = useReadings(
     user.id,
+    targetUserId || null,
   );
+
+  // Si hay un paciente seleccionado y el usuario no es caregiver/admin,
+  // solo puede observar (no registrar)
+  const isViewer =
+    !!viewingPatient && !["admin", "caregiver"].includes(myRoleInGroup);
 
   const [tab, setTab] = useState("inicio");
   const [subTab, setSubTab] = useState("glucosa");
   const [histTab, setHistTab] = useState("glucosa");
-  const [cfg, setCfg] = useState(DEFAULT_CFG);
-  const [draftCfg, setDraftCfg] = useState(DEFAULT_CFG);
+  const [cfg, setCfg] = useState({
+    hypo: profile?.glucose_hypo || 70,
+    target_high: profile?.glucose_target_high || 180,
+    high: profile?.glucose_high || 250,
+  });
+  const [draftCfg, setDraftCfg] = useState({
+    hypo: profile?.glucose_hypo || 70,
+    target_high: profile?.glucose_target_high || 180,
+    high: profile?.glucose_high || 250,
+  });
   const [cfgSaved, setCfgSaved] = useState(false);
 
   const [gForm, setGForm] = useState({ v: "", ctx: "En ayunas", note: "" });
@@ -385,25 +407,48 @@ export default function MainApp({ user, profile, signOut }) {
             KuXtaL
           </div>
           <div
-            style={{ color: wh, fontSize: 16, fontWeight: 600, marginTop: 2 }}
+            style={{ color: wh, fontSize: 14, fontWeight: 600, marginTop: 2 }}
           >
-            {profile?.full_name || user.email}
+            {viewingPatient
+              ? viewingPatient.name
+              : profile?.full_name || user.email}
           </div>
         </div>
-        <button
-          onClick={signOut}
-          style={{
-            background: "#1F2937",
-            border: "none",
-            borderRadius: 20,
-            padding: "5px 14px",
-            color: "#9CA3AF",
-            fontSize: 12,
-            cursor: "pointer",
-          }}
-        >
-          Salir
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            onClick={onOpenProfile}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              cursor: "pointer",
+              background: profile?.avatar_url ? "transparent" : "#FFFFFF22",
+              border: "2px solid #FFFFFF44",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 14,
+              fontWeight: 700,
+              color: wh,
+              overflow: "hidden",
+            }}
+          >
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt="avatar"
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              (profile?.full_name || user.email || "?")
+                .split(" ")
+                .map((w) => w[0])
+                .join("")
+                .toUpperCase()
+                .slice(0, 2)
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -479,10 +524,14 @@ export default function MainApp({ user, profile, signOut }) {
                     marginBottom: 6,
                   }}
                 >
-                  Bienvenido a KuXtaL
+                  {viewingPatient
+                    ? `${viewingPatient.name} aún no tiene registros`
+                    : "Bienvenido a KuXtaL"}
                 </div>
                 <div style={{ fontSize: 13, color: mu }}>
-                  Agrega tu primer registro con el botón + Nuevo
+                  {viewingPatient
+                    ? "Los registros aparecerán aquí cuando se agreguen"
+                    : "Agrega tu primer registro con el botón + Nuevo"}
                 </div>
               </div>
             )}
@@ -644,7 +693,13 @@ export default function MainApp({ user, profile, signOut }) {
                       >
                         {l}
                       </div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: tx }}>
+                      <div
+                        style={{
+                          fontSize: 20,
+                          fontWeight: 700,
+                          color: tx,
+                        }}
+                      >
                         {v}
                       </div>
                       <div style={{ fontSize: 9, color: mu, marginTop: 1 }}>
@@ -755,7 +810,9 @@ export default function MainApp({ user, profile, signOut }) {
                     marginBottom: 22,
                   }}
                 >
-                  Registro de glucosa
+                  {viewingPatient
+                    ? `Registrar glucosa de ${viewingPatient.name}`
+                    : "Registro de glucosa"}
                 </div>
                 <div style={{ textAlign: "center", marginBottom: 24 }}>
                   <div style={lbl10({ textAlign: "center" })}>
@@ -779,6 +836,7 @@ export default function MainApp({ user, profile, signOut }) {
                       placeholder="---"
                       min={20}
                       max={600}
+                      disabled={isViewer}
                       style={{
                         fontSize: 68,
                         fontWeight: 700,
@@ -830,6 +888,7 @@ export default function MainApp({ user, profile, signOut }) {
                     }
                     placeholder="Síntomas, comida, insulina..."
                     rows={3}
+                    disabled={isViewer}
                     style={{
                       width: "100%",
                       border: `1.5px solid ${bd}`,
@@ -844,24 +903,38 @@ export default function MainApp({ user, profile, signOut }) {
                     }}
                   />
                 </div>
-                <button
-                  onClick={saveGlu}
-                  disabled={saving || !gFormVal || gFormVal < 20}
-                  style={{
-                    width: "100%",
-                    padding: 14,
-                    background: gFormVal && gFormVal >= 20 ? G : "#D1D5DB",
-                    color: wh,
-                    border: "none",
-                    borderRadius: 12,
-                    fontSize: 15,
-                    fontWeight: 600,
-                    cursor:
-                      gFormVal && gFormVal >= 20 ? "pointer" : "not-allowed",
-                  }}
-                >
-                  {saving ? "Guardando..." : "Guardar glucosa"}
-                </button>
+
+                {isViewer ? (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      padding: "12px 0",
+                      fontSize: 13,
+                      color: mu,
+                    }}
+                  >
+                    Solo puedes ver los datos de este paciente
+                  </div>
+                ) : (
+                  <button
+                    onClick={saveGlu}
+                    disabled={saving || !gFormVal || gFormVal < 20}
+                    style={{
+                      width: "100%",
+                      padding: 14,
+                      background: gFormVal && gFormVal >= 20 ? G : "#D1D5DB",
+                      color: wh,
+                      border: "none",
+                      borderRadius: 12,
+                      fontSize: 15,
+                      fontWeight: 600,
+                      cursor:
+                        gFormVal && gFormVal >= 20 ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    {saving ? "Guardando..." : "Guardar glucosa"}
+                  </button>
+                )}
               </div>
             ) : (
               <div style={card({ padding: 22 })}>
@@ -873,7 +946,9 @@ export default function MainApp({ user, profile, signOut }) {
                     marginBottom: 22,
                   }}
                 >
-                  Registro de presión arterial
+                  {viewingPatient
+                    ? `Registrar presión de ${viewingPatient.name}`
+                    : "Registro de presión arterial"}
                 </div>
                 <div
                   style={{
@@ -899,6 +974,7 @@ export default function MainApp({ user, profile, signOut }) {
                         placeholder="---"
                         min={mn}
                         max={mx}
+                        disabled={isViewer}
                         style={{
                           fontSize: 48,
                           fontWeight: 700,
@@ -955,6 +1031,7 @@ export default function MainApp({ user, profile, signOut }) {
                       placeholder="ej. 72"
                       min={30}
                       max={220}
+                      disabled={isViewer}
                       style={{
                         flex: 1,
                         padding: "10px 12px",
@@ -991,6 +1068,7 @@ export default function MainApp({ user, profile, signOut }) {
                     }
                     placeholder="Posición, medicamento, síntomas..."
                     rows={2}
+                    disabled={isViewer}
                     style={{
                       width: "100%",
                       border: `1.5px solid ${bd}`,
@@ -1005,23 +1083,37 @@ export default function MainApp({ user, profile, signOut }) {
                     }}
                   />
                 </div>
-                <button
-                  onClick={saveBP}
-                  disabled={saving || !bFormOk}
-                  style={{
-                    width: "100%",
-                    padding: 14,
-                    background: bFormOk ? "#1D4ED8" : "#D1D5DB",
-                    color: wh,
-                    border: "none",
-                    borderRadius: 12,
-                    fontSize: 15,
-                    fontWeight: 600,
-                    cursor: bFormOk ? "pointer" : "not-allowed",
-                  }}
-                >
-                  {saving ? "Guardando..." : "Guardar presión arterial"}
-                </button>
+
+                {isViewer ? (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      padding: "12px 0",
+                      fontSize: 13,
+                      color: mu,
+                    }}
+                  >
+                    Solo puedes ver los datos de este paciente
+                  </div>
+                ) : (
+                  <button
+                    onClick={saveBP}
+                    disabled={saving || !bFormOk}
+                    style={{
+                      width: "100%",
+                      padding: 14,
+                      background: bFormOk ? "#1D4ED8" : "#D1D5DB",
+                      color: wh,
+                      border: "none",
+                      borderRadius: 12,
+                      fontSize: 15,
+                      fontWeight: 600,
+                      cursor: bFormOk ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    {saving ? "Guardando..." : "Guardar presión arterial"}
+                  </button>
+                )}
               </div>
             )}
           </>
@@ -1063,7 +1155,7 @@ export default function MainApp({ user, profile, signOut }) {
                       Sin registros aún
                     </div>
                   )}
-                  {gluReadings.map((r, i) => {
+                  {gluReadings.map((r) => {
                     const s = getGluStatus(r.value, cfg);
                     return (
                       <div
@@ -1087,7 +1179,11 @@ export default function MainApp({ user, profile, signOut }) {
                         />
                         <div style={{ flex: 1 }}>
                           <div
-                            style={{ fontSize: 13, color: tx, fontWeight: 500 }}
+                            style={{
+                              fontSize: 13,
+                              color: tx,
+                              fontWeight: 500,
+                            }}
                           >
                             {r.context}
                           </div>
@@ -1148,7 +1244,7 @@ export default function MainApp({ user, profile, signOut }) {
                       Sin registros aún
                     </div>
                   )}
-                  {bpReadings.map((r, i) => {
+                  {bpReadings.map((r) => {
                     const s = getBPStatus(r.systolic, r.diastolic);
                     return (
                       <div

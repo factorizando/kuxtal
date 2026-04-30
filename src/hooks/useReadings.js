@@ -1,34 +1,40 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 
-export function useReadings(userId) {
+export function useReadings(userId, targetUserId = null) {
   const [gluReadings, setGluReadings] = useState([]);
   const [bpReadings, setBpReadings] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // El ID real de quien son los datos
+  const dataUserId = targetUserId || userId;
+
   const fetchAll = useCallback(async () => {
-    if (!userId) return;
+    if (!dataUserId) return;
     setLoading(true);
-
-    const [{ data: glu }, { data: bp }] = await Promise.all([
-      supabase
-        .from("glucose_readings")
-        .select("*")
-        .eq("user_id", userId)
-        .order("recorded_at", { ascending: false })
-        .limit(50),
-      supabase
-        .from("bp_readings")
-        .select("*")
-        .eq("user_id", userId)
-        .order("recorded_at", { ascending: false })
-        .limit(50),
-    ]);
-
-    setGluReadings(glu || []);
-    setBpReadings(bp || []);
-    setLoading(false);
-  }, [userId]);
+    try {
+      const [{ data: glu }, { data: bp }] = await Promise.all([
+        supabase
+          .from("glucose_readings")
+          .select("*")
+          .eq("user_id", dataUserId)
+          .order("recorded_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("bp_readings")
+          .select("*")
+          .eq("user_id", dataUserId)
+          .order("recorded_at", { ascending: false })
+          .limit(50),
+      ]);
+      setGluReadings(glu || []);
+      setBpReadings(bp || []);
+    } catch (e) {
+      console.error("fetchAll error:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [dataUserId]);
 
   useEffect(() => {
     fetchAll();
@@ -37,7 +43,13 @@ export function useReadings(userId) {
   async function addGlucose({ value, context, note }) {
     const { data, error } = await supabase
       .from("glucose_readings")
-      .insert({ user_id: userId, recorded_by: userId, value, context, note })
+      .insert({
+        user_id: dataUserId, // datos del paciente
+        recorded_by: userId, // quien los registra
+        value,
+        context,
+        note,
+      })
       .select()
       .single();
     if (error) throw error;
@@ -48,7 +60,7 @@ export function useReadings(userId) {
     const { data, error } = await supabase
       .from("bp_readings")
       .insert({
-        user_id: userId,
+        user_id: dataUserId,
         recorded_by: userId,
         systolic,
         diastolic,

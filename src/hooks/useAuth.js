@@ -7,14 +7,12 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Sesión activa al cargar
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) fetchProfile(session.user.id);
       else setLoading(false);
     });
 
-    // Escuchar cambios de sesión (login, logout)
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -25,7 +23,6 @@ export function useAuth() {
         setLoading(false);
       }
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
@@ -39,15 +36,44 @@ export function useAuth() {
     setLoading(false);
   }
 
+  async function refreshProfile() {
+    if (!user) return;
+    await fetchProfile(user.id);
+  }
+
+  async function updateProfile(updates) {
+    const { error } = await supabase
+      .from("profiles")
+      .update(updates)
+      .eq("id", user.id);
+    if (error) throw error;
+    await fetchProfile(user.id);
+  }
+
+  async function uploadAvatar(file) {
+    const ext = file.name.split(".").pop();
+    const path = `${user.id}/avatar.${ext}`;
+
+    const { error } = await supabase.storage
+      .from("avatars")
+      .upload(path, file, { upsert: true });
+    if (error) throw error;
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("avatars").getPublicUrl(path);
+
+    await updateProfile({ avatar_url: publicUrl });
+    return publicUrl;
+  }
+
   async function signUp(email, password, fullName) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } }, // guardamos el nombre en auth.users
+      options: { data: { full_name: fullName } },
     });
     if (error) throw error;
-
-    // Solo insertamos el perfil si la sesión ya está activa
     if (data.session) {
       await supabase.from("profiles").insert({
         id: data.user.id,
@@ -69,5 +95,15 @@ export function useAuth() {
     await supabase.auth.signOut();
   }
 
-  return { user, profile, loading, signUp, signIn, signOut };
+  return {
+    user,
+    profile,
+    loading,
+    signUp,
+    signIn,
+    signOut,
+    updateProfile,
+    uploadAvatar,
+    refreshProfile,
+  };
 }
