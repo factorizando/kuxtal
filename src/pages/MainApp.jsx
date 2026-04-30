@@ -191,16 +191,21 @@ export default function MainApp({
   onOpenProfile,
   myRoleInGroup,
 }) {
-  const { gluReadings, bpReadings, loading, addGlucose, addBP } = useReadings(
-    user.id,
-    targetUserId || null,
-  );
+  const {
+    gluReadings,
+    bpReadings,
+    loading,
+    addGlucose,
+    addBP,
+    deleteGlucose,
+    deleteBP,
+  } = useReadings(user.id, targetUserId || null);
 
   // Si hay un paciente seleccionado y el usuario no es caregiver/admin,
   // solo puede observar (no registrar)
   const isViewer =
     !!viewingPatient && !["admin", "caregiver"].includes(myRoleInGroup);
-
+  const canDelete = myRoleInGroup === "admin" || !viewingPatient;
   const [tab, setTab] = useState("inicio");
   const [subTab, setSubTab] = useState("glucosa");
   const [histTab, setHistTab] = useState("glucosa");
@@ -1200,21 +1205,48 @@ export default function MainApp({
                             </div>
                           )}
                         </div>
-                        <div style={{ textAlign: "right" }}>
-                          <span
-                            style={{
-                              fontSize: 20,
-                              fontWeight: 700,
-                              color: s.color,
-                            }}
-                          >
-                            {r.value}
-                          </span>
-                          <span
-                            style={{ fontSize: 10, color: mu, marginLeft: 4 }}
-                          >
-                            mg/dL
-                          </span>
+                        <div
+                          style={{
+                            textAlign: "right",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                          }}
+                        >
+                          <div>
+                            <span
+                              style={{
+                                fontSize: 20,
+                                fontWeight: 700,
+                                color: s.color,
+                              }}
+                            >
+                              {r.value}
+                            </span>
+                            <span
+                              style={{ fontSize: 10, color: mu, marginLeft: 4 }}
+                            >
+                              mg/dL
+                            </span>
+                          </div>
+                          {canDelete && (
+                            <button
+                              onClick={() => {
+                                if (confirm("¿Borrar este registro?"))
+                                  deleteGlucose(r.id);
+                              }}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                fontSize: 16,
+                                padding: 4,
+                                color: "#FCA5A5",
+                              }}
+                            >
+                              🗑
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -1314,16 +1346,42 @@ export default function MainApp({
                         </div>
                         <div
                           style={{
-                            background: s.bg,
-                            border: `1px solid ${s.ring}`,
-                            borderRadius: 20,
-                            padding: "3px 8px",
-                            color: s.color,
-                            fontSize: 10,
-                            fontWeight: 600,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
                           }}
                         >
-                          {s.label}
+                          <div
+                            style={{
+                              background: s.bg,
+                              border: `1px solid ${s.ring}`,
+                              borderRadius: 20,
+                              padding: "3px 8px",
+                              color: s.color,
+                              fontSize: 10,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {s.label}
+                          </div>
+                          {canDelete && (
+                            <button
+                              onClick={() => {
+                                if (confirm("¿Borrar este registro?"))
+                                  deleteBP(r.id);
+                              }}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                fontSize: 16,
+                                padding: 4,
+                                color: "#FCA5A5",
+                              }}
+                            >
+                              🗑
+                            </button>
+                          )}
                         </div>
                       </div>
                     );

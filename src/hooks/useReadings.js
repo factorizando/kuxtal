@@ -73,13 +73,28 @@ export function useReadings(userId, targetUserId = null) {
     if (error) throw error;
     setBpReadings((prev) => [data, ...prev]);
   }
+  async function deleteGlucose(id) {
+    const { error } = await supabase
+      .from("glucose_readings")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+    setGluReadings((prev) => prev.filter((r) => r.id !== id));
+  }
 
+  async function deleteBP(id) {
+    const { error } = await supabase.from("bp_readings").delete().eq("id", id);
+    if (error) throw error;
+    setBpReadings((prev) => prev.filter((r) => r.id !== id));
+  }
   return {
     gluReadings,
     bpReadings,
     loading,
     addGlucose,
     addBP,
+    deleteGlucose,
+    deleteBP,
     refetch: fetchAll,
   };
 }
