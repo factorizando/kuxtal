@@ -95,48 +95,55 @@ export default function AuthScreen() {
           </div>
         </div>
 
-        {mode === "register" && input("Nombre completo", "name")}
-        {input("Correo electrónico", "email", "email")}
-        {input("Contraseña", "password", "password")}
-
-        {error && (
-          <div
-            style={{
-              background: "#FEF2F2",
-              border: "1px solid #FCA5A5",
-              borderRadius: 8,
-              padding: "10px 14px",
-              fontSize: 13,
-              color: "#991B1B",
-              marginBottom: 12,
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          style={{
-            width: "100%",
-            padding: 14,
-            background: G,
-            color: wh,
-            border: "none",
-            borderRadius: 12,
-            fontSize: 15,
-            fontWeight: 600,
-            cursor: loading ? "not-allowed" : "pointer",
-            opacity: loading ? 0.7 : 1,
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSubmit();
           }}
         >
-          {loading
-            ? "Cargando..."
-            : mode === "login"
-              ? "Iniciar sesión"
-              : "Registrarse"}
-        </button>
+          {mode === "register" && input("Nombre completo", "name")}
+          {input("Correo electrónico", "email", "email")}
+          {input("Contraseña", "password", "password")}
+
+          {error && (
+            <div
+              style={{
+                background: "#FEF2F2",
+                border: "1px solid #FCA5A5",
+                borderRadius: 8,
+                padding: "10px 14px",
+                fontSize: 13,
+                color: "#991B1B",
+                marginBottom: 12,
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: "100%",
+              padding: 14,
+              background: G,
+              color: wh,
+              border: "none",
+              borderRadius: 12,
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.7 : 1,
+            }}
+          >
+            {loading
+              ? "Cargando..."
+              : mode === "login"
+                ? "Iniciar sesión"
+                : "Registrarse"}
+          </button>
+        </form>
 
         <div
           style={{

@@ -615,20 +615,29 @@ export default function FamilyScreen({
             <div style={{ fontSize: 13, color: mu, marginBottom: 20 }}>
               Serás el administrador del grupo
             </div>
-            <div style={lbl10()}>Nombre del grupo</div>
-            <input
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="ej. Familia García"
-              style={inputStyle}
-            />
-            <button
-              onClick={handleCreate}
-              disabled={busy || !form.name.trim()}
-              style={btn(G)}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleCreate();
+              }}
             >
-              {busy ? "Creando..." : "Crear grupo"}
-            </button>
+              <div style={lbl10()}>Nombre del grupo</div>
+              <input
+                value={form.name}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                }
+                placeholder="ej. Familia García"
+                style={inputStyle}
+              />
+              <button
+                type="submit"
+                disabled={busy || !form.name.trim()}
+                style={btn(G)}
+              >
+                {busy ? "Creando..." : "Crear grupo"}
+              </button>
+            </form>
           </div>
         )}
 
@@ -649,28 +658,35 @@ export default function FamilyScreen({
               Pide el código de invitación al administrador del grupo
             </div>
             <div style={lbl10()}>Código de invitación</div>
-            <input
-              value={form.code}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))
-              }
-              placeholder="ej. AB3X7K"
-              maxLength={6}
-              style={{
-                ...inputStyle,
-                fontSize: 28,
-                fontWeight: 700,
-                textAlign: "center",
-                letterSpacing: 6,
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleJoin();
               }}
-            />
-            <button
-              onClick={handleJoin}
-              disabled={busy || form.code.length < 6}
-              style={btn(G)}
             >
-              {busy ? "Verificando..." : "Unirse al grupo"}
-            </button>
+              <input
+                value={form.code}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))
+                }
+                placeholder="ej. AB3X7K"
+                maxLength={6}
+                style={{
+                  ...inputStyle,
+                  fontSize: 28,
+                  fontWeight: 700,
+                  textAlign: "center",
+                  letterSpacing: 6,
+                }}
+              />
+              <button
+                type="submit"
+                disabled={busy || form.code.length < 6}
+                style={btn(G)}
+              >
+                {busy ? "Verificando..." : "Unirse al grupo"}
+              </button>
+            </form>
           </div>
         )}
 
