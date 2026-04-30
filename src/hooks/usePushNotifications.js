@@ -5,16 +5,14 @@ const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding)
-    .replace(/-/g, "+")
-    .replace(/_/g, "/");
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const rawData = window.atob(base64);
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
 }
 
 export function usePushNotifications(userId) {
   const [permission, setPermission] = useState(
-    typeof Notification !== "undefined" ? Notification.permission : "default"
+    typeof Notification !== "undefined" ? Notification.permission : "default",
   );
   const [subscribed, setSubscribed] = useState(false);
 
@@ -56,18 +54,15 @@ export function usePushNotifications(userId) {
     console.log("endpoint:", endpoint);
     console.log("subJson:", subJson);
 
-    // Borrar registro anterior
-    await supabase
-      .from("push_subscriptions")
-      .delete()
-      .eq("user_id", userId);
-
-    // Insertar nuevo
-    const { error } = await supabase.from("push_subscriptions").insert({
-      user_id: userId,
-      endpoint: endpoint,
-      subscription: subJson,
-    });
+    // Upsert con conflicto en user_id
+    const { error } = await supabase.from("push_subscriptions").upsert(
+      {
+        user_id: userId,
+        endpoint: endpoint,
+        subscription: subJson,
+      },
+      { onConflict: "user_id" },
+    );
 
     if (error) {
       console.error("Error:", error);
@@ -83,10 +78,7 @@ export function usePushNotifications(userId) {
     const sub = await reg.pushManager.getSubscription();
     if (sub) await sub.unsubscribe();
 
-    await supabase
-      .from("push_subscriptions")
-      .delete()
-      .eq("user_id", userId);
+    await supabase.from("push_subscriptions").delete().eq("user_id", userId);
 
     setSubscribed(false);
   }
