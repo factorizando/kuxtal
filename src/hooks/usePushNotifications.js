@@ -1,48 +1,45 @@
 async function subscribe() {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-    alert("Tu navegador no soporta notificaciones push");
-    return;
-  }
-
-  // Verificar que userId existe antes de continuar
-  if (!userId) {
-    console.error("No hay userId disponible");
-    return;
-  }
+  if (!userId) return;
 
   const perm = await Notification.requestPermission();
   setPermission(perm);
   if (perm !== "granted") return;
 
   const reg = await navigator.serviceWorker.ready;
+
+  // Cancelar suscripción anterior si existe
+  const existing = await reg.pushManager.getSubscription();
+  if (existing) await existing.unsubscribe();
+
+  // Crear nueva suscripción
   const sub = await reg.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
   });
 
+  // Convertir a JSON y extraer endpoint explícitamente
   const subJson = sub.toJSON();
-  console.log("Guardando suscripción para userId:", userId);
-  console.log("Suscripción:", subJson);
+  const endpoint = subJson.endpoint;
 
-  // Primero borrar la suscripción anterior si existe
+  console.log("userId:", userId);
+  console.log("endpoint:", endpoint);
+  console.log("subJson:", subJson);
+
+  // Borrar registro anterior
   await supabase.from("push_subscriptions").delete().eq("user_id", userId);
 
-  // Luego insertar la nueva
+  // Insertar nuevo
   const { error } = await supabase.from("push_subscriptions").insert({
     user_id: userId,
-    endpoint: sub.endpoint,
+    endpoint: endpoint,
     subscription: subJson,
   });
 
   if (error) {
-    console.error("Error guardando suscripción:", error);
+    console.error("Error:", error);
     return;
   }
 
-  if (error) {
-    console.error("Error guardando suscripción:", error);
-    return;
-  }
-
+  console.log("✅ Suscripción guardada");
   setSubscribed(true);
 }
