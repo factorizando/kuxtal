@@ -208,6 +208,8 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [showRestock, setShowRestock] = useState(null);
   const [showDetail, setShowDetail] = useState(null);
   const [showAdjust, setShowAdjust] = useState(null);
+  const [showUnitSheet, setShowUnitSheet] = useState(false);
+  const [showStoreSheet, setShowStoreSheet] = useState(false);
   const [restockHistory, setRestockHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
@@ -683,9 +685,10 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
             <input type="text" placeholder="ej. Metformina 500mg, Tiras reactivas..." value={iName} onChange={(e) => setIName(e.target.value)} style={inputSt} />
           </Field>
           <Field label="Unidad de medida">
-            <select value={iUnit} onChange={(e) => setIUnit(e.target.value)} style={inputSt}>
-              {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-            </select>
+            <button onClick={() => setShowUnitSheet(true)} style={{ ...inputSt, textAlign: "left", cursor: "pointer", color: "#111827", display: "flex", alignItems: "center", justifyContent: "space-between", border: `1px solid ${bd}` }}>
+              <span>{iUnit}</span>
+              <span style={{ color: mu, fontSize: 13 }}>›</span>
+            </button>
           </Field>
           <Field label={`Consumo diario (${iUnit}/día)`}>
             <input type="number" inputMode="decimal" placeholder="ej. 2" value={iConsumo} onChange={(e) => setIConsumo(e.target.value)} min="0.01" step="0.5" style={inputSt} />
@@ -715,10 +718,10 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
             <input type="text" placeholder="ej. Metformina Norma, Glucophage, Pisa..." value={rBrand} onChange={(e) => setRBrand(e.target.value)} style={inputSt} />
           </Field>
           <Field label="Tienda">
-            <select value={rStore} onChange={(e) => setRStore(e.target.value)} style={inputSt}>
-              <option value="">Sin especificar</option>
-              {STORES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <button onClick={() => setShowStoreSheet(true)} style={{ ...inputSt, textAlign: "left", cursor: "pointer", color: rStore ? "#111827" : "#9CA3AF", display: "flex", alignItems: "center", justifyContent: "space-between", border: `1px solid ${bd}` }}>
+              <span>{rStore || "Sin especificar"}</span>
+              <span style={{ color: mu, fontSize: 13 }}>›</span>
+            </button>
           </Field>
           <Field label="Precio total pagado (MXN, opcional)">
             <input type="number" inputMode="decimal" placeholder="0.00" value={rPrice} onChange={(e) => setRPrice(e.target.value)} min="0" step="0.01" style={inputSt} />
@@ -824,6 +827,44 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
             </div>
           )}
         </Sheet>
+      )}
+
+      {showUnitSheet && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", zIndex: 55, display: "flex", alignItems: "flex-end" }}
+          onClick={() => setShowUnitSheet(false)}>
+          <div style={{ background: wh, borderRadius: "20px 20px 0 0", width: "100%", paddingBottom: 32, boxSizing: "border-box" }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ padding: "20px 20px 12px", fontSize: 15, fontWeight: 700, color: "#111827", borderBottom: `1px solid ${bd}` }}>
+              Unidad de medida
+            </div>
+            {UNITS.map((u) => (
+              <button key={u} onClick={() => { setIUnit(u); setShowUnitSheet(false); }}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "15px 20px", border: "none", borderBottom: `1px solid ${bd}`, background: iUnit === u ? `${G}0D` : "none", color: iUnit === u ? G : "#111827", fontSize: 15, fontWeight: iUnit === u ? 600 : 400, cursor: "pointer", textAlign: "left", boxSizing: "border-box" }}>
+                {u}
+                {iUnit === u && <span style={{ color: G, fontSize: 16 }}>✓</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showStoreSheet && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", zIndex: 55, display: "flex", alignItems: "flex-end" }}
+          onClick={() => setShowStoreSheet(false)}>
+          <div style={{ background: wh, borderRadius: "20px 20px 0 0", width: "100%", paddingBottom: 32, boxSizing: "border-box" }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ padding: "20px 20px 12px", fontSize: 15, fontWeight: 700, color: "#111827", borderBottom: `1px solid ${bd}` }}>
+              Tienda
+            </div>
+            {["", ...STORES].map((s) => (
+              <button key={s || "_none"} onClick={() => { setRStore(s); setShowStoreSheet(false); }}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "15px 20px", border: "none", borderBottom: `1px solid ${bd}`, background: rStore === s ? `${G}0D` : "none", color: rStore === s ? G : "#111827", fontSize: 15, fontWeight: rStore === s ? 600 : 400, cursor: "pointer", textAlign: "left", boxSizing: "border-box" }}>
+                {s || "Sin especificar"}
+                {rStore === s && <span style={{ color: G, fontSize: 16 }}>✓</span>}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {showAdjust && (
