@@ -254,6 +254,7 @@ export default function MainApp({
     high: profile?.glucose_high || 250,
   });
   const [cfgSaved, setCfgSaved] = useState(false);
+  const [editingCfg, setEditingCfg] = useState(false);
 
   const [gForm, setGForm] = useState({ v: "", ctx: "En ayunas", note: "" });
   const [bForm, setBForm] = useState({
@@ -385,6 +386,7 @@ export default function MainApp({
 
   function saveCfg() {
     setCfg({ ...draftCfg });
+    setEditingCfg(false);
     setCfgSaved(true);
     setTimeout(() => setCfgSaved(false), 2000);
   }
@@ -1450,113 +1452,125 @@ export default function MainApp({
         {tab === "config" && (
           <>
             <div style={card()}>
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: tx,
-                  marginBottom: 4,
-                }}
-              >
-                Rangos de glucosa
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: tx }}>
+                  Rangos de glucosa
+                </div>
+                {!editingCfg && (
+                  <button
+                    onClick={() => setEditingCfg(true)}
+                    style={{ padding: "5px 14px", border: `1.5px solid ${bd}`, borderRadius: 8, background: wh, fontSize: 13, fontWeight: 600, color: tx, cursor: "pointer" }}
+                  >
+                    Editar
+                  </button>
+                )}
               </div>
-              <div style={{ fontSize: 12, color: mu, marginBottom: 20 }}>
+              <div style={{ fontSize: 12, color: mu, marginBottom: 16 }}>
                 Personaliza los umbrales según tu tratamiento
               </div>
-              <RangeInput
-                label="Hipoglucemia"
-                value={draftCfg.hypo}
-                min={50}
-                max={90}
-                unit="mg/dL"
-                color="#DC2626"
-                onChange={(v) => setDraftCfg((c) => ({ ...c, hypo: v }))}
-              />
-              <RangeInput
-                label="Rango objetivo — límite superior"
-                value={draftCfg.target_high}
-                min={120}
-                max={240}
-                unit="mg/dL"
-                color={G}
-                onChange={(v) =>
-                  setDraftCfg((c) => ({
-                    ...c,
-                    target_high: v,
-                    high: Math.max(v + 20, c.high),
-                  }))
-                }
-              />
-              <RangeInput
-                label="Alerta de glucosa elevada"
-                value={draftCfg.high}
-                min={draftCfg.target_high + 20}
-                max={400}
-                unit="mg/dL"
-                color="#DC2626"
-                onChange={(v) => setDraftCfg((c) => ({ ...c, high: v }))}
-              />
-              <div style={{ marginBottom: 4 }}>
-                <div
+
+              {!editingCfg ? (
+                <div>
+                  {[
+                    ["Hipoglucemia", draftCfg.hypo, "#DC2626"],
+                    ["Rango objetivo — límite superior", draftCfg.target_high, G],
+                    ["Alerta de glucosa elevada", draftCfg.high, "#DC2626"],
+                  ].map(([label, value, color], i, arr) => (
+                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: i < arr.length - 1 ? `1px solid ${bd}` : "none" }}>
+                      <span style={{ fontSize: 13, color: tx }}>{label}</span>
+                      <span style={{ fontSize: 15, fontWeight: 700, color }}>{value} mg/dL</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <RangeInput
+                    label="Hipoglucemia"
+                    value={draftCfg.hypo}
+                    min={50}
+                    max={90}
+                    unit="mg/dL"
+                    color="#DC2626"
+                    onChange={(v) => setDraftCfg((c) => ({ ...c, hypo: v }))}
+                  />
+                  <RangeInput
+                    label="Rango objetivo — límite superior"
+                    value={draftCfg.target_high}
+                    min={120}
+                    max={240}
+                    unit="mg/dL"
+                    color={G}
+                    onChange={(v) =>
+                      setDraftCfg((c) => ({
+                        ...c,
+                        target_high: v,
+                        high: Math.max(v + 20, c.high),
+                      }))
+                    }
+                  />
+                  <RangeInput
+                    label="Alerta de glucosa elevada"
+                    value={draftCfg.high}
+                    min={draftCfg.target_high + 20}
+                    max={400}
+                    unit="mg/dL"
+                    color="#DC2626"
+                    onChange={(v) => setDraftCfg((c) => ({ ...c, high: v }))}
+                  />
+                  <div style={{ marginBottom: 4 }}>
+                    <div style={{ fontSize: 10, color: mu, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                      Vista previa
+                    </div>
+                    <div style={{ height: 20, borderRadius: 10, overflow: "hidden", display: "flex" }}>
+                      <div style={{ width: `${((draftCfg.hypo - 40) / 360) * 100}%`, background: "#FEE2E2" }} />
+                      <div style={{ width: `${((draftCfg.target_high - draftCfg.hypo) / 360) * 100}%`, background: "#D1FAE5" }} />
+                      <div style={{ width: `${((draftCfg.high - draftCfg.target_high) / 360) * 100}%`, background: "#FEF3C7" }} />
+                      <div style={{ flex: 1, background: "#FEE2E2" }} />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {editingCfg && (
+              <>
+                <button
+                  onClick={saveCfg}
                   style={{
-                    fontSize: 10,
-                    color: mu,
-                    textTransform: "uppercase",
-                    letterSpacing: 1,
+                    width: "100%",
+                    padding: 14,
+                    background: cfgSaved ? G : hd,
+                    color: wh,
+                    border: "none",
+                    borderRadius: 12,
+                    fontSize: 15,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "background .3s",
                     marginBottom: 8,
                   }}
                 >
-                  Vista previa
-                </div>
-                <div
+                  {cfgSaved ? "✓ Guardado" : "Guardar configuración"}
+                </button>
+                <button
+                  onClick={() => { setDraftCfg({ ...cfg }); setEditingCfg(false); }}
                   style={{
-                    height: 20,
-                    borderRadius: 10,
-                    overflow: "hidden",
-                    display: "flex",
+                    width: "100%",
+                    padding: 14,
+                    background: "transparent",
+                    color: mu,
+                    border: `1.5px solid ${bd}`,
+                    borderRadius: 12,
+                    fontSize: 15,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    marginBottom: 12,
                   }}
                 >
-                  <div
-                    style={{
-                      width: `${((draftCfg.hypo - 40) / 360) * 100}%`,
-                      background: "#FEE2E2",
-                    }}
-                  />
-                  <div
-                    style={{
-                      width: `${((draftCfg.target_high - draftCfg.hypo) / 360) * 100}%`,
-                      background: "#D1FAE5",
-                    }}
-                  />
-                  <div
-                    style={{
-                      width: `${((draftCfg.high - draftCfg.target_high) / 360) * 100}%`,
-                      background: "#FEF3C7",
-                    }}
-                  />
-                  <div style={{ flex: 1, background: "#FEE2E2" }} />
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={saveCfg}
-              style={{
-                width: "100%",
-                padding: 14,
-                background: cfgSaved ? G : hd,
-                color: wh,
-                border: "none",
-                borderRadius: 12,
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "background .3s",
-                marginBottom: 12,
-              }}
-            >
-              {cfgSaved ? "✓ Guardado" : "Guardar configuración"}
-            </button>
+                  Cancelar
+                </button>
+              </>
+            )}
 
             <button
               onClick={signOut}

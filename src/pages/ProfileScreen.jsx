@@ -59,6 +59,7 @@ export default function ProfileScreen({ onClose, signOut }) {
     glucose_target_high: profile?.glucose_target_high || 180,
     glucose_high: profile?.glucose_high || 250,
   });
+  const [editingRanges, setEditingRanges] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -77,6 +78,7 @@ export default function ProfileScreen({ onClose, signOut }) {
     setError(null);
     try {
       await updateProfile({ full_name: name.trim(), ...ranges });
+      setEditingRanges(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
@@ -180,45 +182,79 @@ export default function ProfileScreen({ onClose, signOut }) {
 
         {/* Rangos de glucosa */}
         <div style={card()}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: tx, marginBottom: 4 }}>Rangos de glucosa</div>
-          <div style={{ fontSize: 12, color: mu, marginBottom: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: tx }}>Rangos de glucosa</div>
+            {!editingRanges && (
+              <button
+                onClick={() => setEditingRanges(true)}
+                style={{ padding: "5px 14px", border: `1.5px solid ${bd}`, borderRadius: 8, background: wh, fontSize: 13, fontWeight: 600, color: tx, cursor: "pointer" }}
+              >
+                Editar
+              </button>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: mu, marginBottom: 16 }}>
             Se guardan en tu perfil y se aplican en todos tus dispositivos
           </div>
 
-          <RangeInput
-            label="Hipoglucemia — umbral inferior"
-            value={ranges.glucose_hypo} min={50} max={90} unit="mg/dL" color="#DC2626"
-            onChange={(v) => setRanges((r) => ({ ...r, glucose_hypo: v }))}
-          />
-          <RangeInput
-            label="Rango objetivo — límite superior"
-            value={ranges.glucose_target_high} min={120} max={240} unit="mg/dL" color={G}
-            onChange={(v) => setRanges((r) => ({ ...r, glucose_target_high: v, glucose_high: Math.max(v + 20, r.glucose_high) }))}
-          />
-          <RangeInput
-            label="Alerta de glucosa elevada"
-            value={ranges.glucose_high} min={ranges.glucose_target_high + 20} max={400} unit="mg/dL" color="#DC2626"
-            onChange={(v) => setRanges((r) => ({ ...r, glucose_high: v }))}
-          />
-
-          {/* Barra de vista previa */}
-          <div>
-            <span style={lbl10()}>Vista previa</span>
-            <div style={{ height: 20, borderRadius: 10, overflow: "hidden", display: "flex" }}>
-              <div style={{ width: `${((ranges.glucose_hypo - 40) / 360) * 100}%`, background: "#FEE2E2" }}/>
-              <div style={{ width: `${((ranges.glucose_target_high - ranges.glucose_hypo) / 360) * 100}%`, background: "#D1FAE5" }}/>
-              <div style={{ width: `${((ranges.glucose_high - ranges.glucose_target_high) / 360) * 100}%`, background: "#FEF3C7" }}/>
-              <div style={{ flex: 1, background: "#FEE2E2" }}/>
-            </div>
-            <div style={{ display: "flex", gap: 12, marginTop: 6 }}>
-              {[["#DC2626","Hipo"],[G,"En rango"],["#D97706","Elevada"],["#DC2626","Muy elevada"]].map(([c, l]) => (
-                <div key={l} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: 2, background: c }}/>
-                  <span style={{ fontSize: 10, color: mu }}>{l}</span>
+          {!editingRanges ? (
+            <div>
+              {[
+                ["Hipoglucemia — umbral inferior", ranges.glucose_hypo, "#DC2626"],
+                ["Rango objetivo — límite superior", ranges.glucose_target_high, G],
+                ["Alerta de glucosa elevada", ranges.glucose_high, "#DC2626"],
+              ].map(([label, value, color], i, arr) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: i < arr.length - 1 ? `1px solid ${bd}` : "none" }}>
+                  <span style={{ fontSize: 13, color: tx }}>{label}</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color }}>{value} mg/dL</span>
                 </div>
               ))}
             </div>
-          </div>
+          ) : (
+            <>
+              <RangeInput
+                label="Hipoglucemia — umbral inferior"
+                value={ranges.glucose_hypo} min={50} max={90} unit="mg/dL" color="#DC2626"
+                onChange={(v) => setRanges((r) => ({ ...r, glucose_hypo: v }))}
+              />
+              <RangeInput
+                label="Rango objetivo — límite superior"
+                value={ranges.glucose_target_high} min={120} max={240} unit="mg/dL" color={G}
+                onChange={(v) => setRanges((r) => ({ ...r, glucose_target_high: v, glucose_high: Math.max(v + 20, r.glucose_high) }))}
+              />
+              <RangeInput
+                label="Alerta de glucosa elevada"
+                value={ranges.glucose_high} min={ranges.glucose_target_high + 20} max={400} unit="mg/dL" color="#DC2626"
+                onChange={(v) => setRanges((r) => ({ ...r, glucose_high: v }))}
+              />
+
+              {/* Barra de vista previa */}
+              <div>
+                <span style={lbl10()}>Vista previa</span>
+                <div style={{ height: 20, borderRadius: 10, overflow: "hidden", display: "flex" }}>
+                  <div style={{ width: `${((ranges.glucose_hypo - 40) / 360) * 100}%`, background: "#FEE2E2" }}/>
+                  <div style={{ width: `${((ranges.glucose_target_high - ranges.glucose_hypo) / 360) * 100}%`, background: "#D1FAE5" }}/>
+                  <div style={{ width: `${((ranges.glucose_high - ranges.glucose_target_high) / 360) * 100}%`, background: "#FEF3C7" }}/>
+                  <div style={{ flex: 1, background: "#FEE2E2" }}/>
+                </div>
+                <div style={{ display: "flex", gap: 12, marginTop: 6 }}>
+                  {[["#DC2626","Hipo"],[G,"En rango"],["#D97706","Elevada"],["#DC2626","Muy elevada"]].map(([c, l]) => (
+                    <div key={l} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 2, background: c }}/>
+                      <span style={{ fontSize: 10, color: mu }}>{l}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={() => { setRanges({ glucose_hypo: profile?.glucose_hypo || 70, glucose_target_high: profile?.glucose_target_high || 180, glucose_high: profile?.glucose_high || 250 }); setEditingRanges(false); }}
+                style={{ marginTop: 14, width: "100%", padding: "10px 0", border: `1.5px solid ${bd}`, borderRadius: 10, background: wh, fontSize: 14, fontWeight: 600, color: mu, cursor: "pointer" }}
+              >
+                Cancelar
+              </button>
+            </>
+          )}
         </div>
 
         {/* Notificaciones push */}
