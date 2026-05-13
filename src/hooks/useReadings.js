@@ -60,11 +60,29 @@ export function useReadings(userId, targetUserId = null) {
 
     if (!title) return;
 
-    // Obtener suscripciones de todos los miembros del grupo del paciente
+    // Obtener todos los grupos del paciente
+    const { data: patientGroups } = await supabase
+      .from("family_memberships")
+      .select("group_id")
+      .eq("user_id", dataUserId);
+
+    const groupIds = (patientGroups || []).map((g) => g.group_id);
+
+    // Reunir IDs de todos los miembros de esos grupos
+    let memberIds = [dataUserId];
+    if (groupIds.length > 0) {
+      const { data: groupMembers } = await supabase
+        .from("family_memberships")
+        .select("user_id")
+        .in("group_id", groupIds);
+      memberIds = [...new Set((groupMembers || []).map((m) => m.user_id))];
+    }
+
+    // Obtener suscripciones de TODOS los integrantes del grupo
     const { data: subs } = await supabase
       .from("push_subscriptions")
       .select("subscription")
-      .eq("user_id", dataUserId);
+      .in("user_id", memberIds);
 
     if (!subs?.length) return;
 

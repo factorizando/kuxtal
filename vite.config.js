@@ -6,7 +6,12 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: "injectManifest",
+      srcDir: "public",
+      filename: "sw-notifications.js",
       registerType: "autoUpdate",
+      devOptions: { enabled: true },
+      injectManifest: { globPatterns: [] },
       includeAssets: ["favicon.ico", "apple-touch-icon.png"],
       manifest: {
         name: "KuXtaL",

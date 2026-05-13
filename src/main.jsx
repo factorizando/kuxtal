@@ -9,10 +9,4 @@ createRoot(document.getElementById("root")).render(
   </StrictMode>,
 );
 
-// Registrar service worker de notificaciones
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker
-    .register("/sw-notifications.js")
-    .then((reg) => console.log("SW notificaciones registrado:", reg.scope))
-    .catch((err) => console.error("SW notificaciones error:", err));
-}
+// El service worker es registrado automáticamente por vite-plugin-pwa

@@ -1,3 +1,6 @@
+// Requerido por vite-plugin-pwa (injectManifest); no precacheamos assets.
+self.__WB_MANIFEST;
+
 self.addEventListener("push", (event) => {
   const data = event.data?.json() ?? {};
   const title = data.title || "KuXtaL";
