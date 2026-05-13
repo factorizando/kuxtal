@@ -195,6 +195,7 @@ export default function BudgetScreen({ userId }) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   const [showCategorySheet, setShowCategorySheet] = useState(false);
+  const [showContributorSheet, setShowContributorSheet] = useState(false);
 
   const canEdit = myRole === "admin" || myRole === "caregiver";
 
@@ -652,41 +653,30 @@ export default function BudgetScreen({ userId }) {
               )}
             </Field>
 
-            {/* Aportado por — select nativo estilizado (solo ingreso) */}
+            {/* Aportado por — bottom sheet (solo ingreso) */}
             {fType === "income" && (
               <Field label="Aportado por">
-                <div style={{ position: "relative" }}>
-                  <select
-                    value={fContributor}
-                    onChange={(e) => setFContributor(e.target.value)}
-                    style={{
-                      ...inputSt,
-                      appearance: "none",
-                      WebkitAppearance: "none",
-                      paddingRight: 36,
-                      cursor: "pointer",
-                      background: wh,
-                    }}
-                  >
-                    <option value="">Seleccionar integrante...</option>
-                    <option value="bienestar">Bienestar</option>
-                    {members.map((m) => (
-                      <option key={m.profiles.id} value={m.profiles.id}>
-                        {m.profiles.full_name || "Sin nombre"}
-                      </option>
-                    ))}
-                  </select>
-                  <span style={{
-                    position: "absolute",
-                    right: 12,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    pointerEvents: "none",
-                    color: mu,
-                    fontSize: 12,
-                    lineHeight: 1,
-                  }}>▼</span>
-                </div>
+                <button
+                  onClick={() => setShowContributorSheet(true)}
+                  style={{
+                    ...inputSt,
+                    textAlign: "left",
+                    cursor: "pointer",
+                    color: fContributor ? "#111827" : "#9CA3AF",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    border: `1px solid ${bd}`,
+                  }}
+                >
+                  <span>
+                    {fContributor === "bienestar"
+                      ? "Bienestar"
+                      : members.find((m) => m.profiles.id === fContributor)?.profiles.full_name
+                      || "Seleccionar integrante..."}
+                  </span>
+                  <span style={{ color: mu, fontSize: 13 }}>›</span>
+                </button>
               </Field>
             )}
 
@@ -803,6 +793,48 @@ export default function BudgetScreen({ userId }) {
               >
                 {c}
                 {fCategory === c && <span style={{ color: G, fontSize: 16 }}>✓</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Bottom sheet: aportado por ── */}
+      {showContributorSheet && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", zIndex: 55, display: "flex", alignItems: "flex-end" }}
+          onClick={() => setShowContributorSheet(false)}
+        >
+          <div
+            style={{ background: wh, borderRadius: "20px 20px 0 0", width: "100%", paddingBottom: 32, boxSizing: "border-box" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: "20px 20px 12px", fontSize: 15, fontWeight: 700, color: "#111827", borderBottom: `1px solid ${bd}` }}>
+              Aportado por
+            </div>
+            {[{ id: "bienestar", name: "Bienestar" }, ...members.map((m) => ({ id: m.profiles.id, name: m.profiles.full_name || "Sin nombre" }))].map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => { setFContributor(opt.id); setShowContributorSheet(false); }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  padding: "15px 20px",
+                  border: "none",
+                  borderBottom: `1px solid ${bd}`,
+                  background: fContributor === opt.id ? `${G}0D` : "none",
+                  color: fContributor === opt.id ? G : "#111827",
+                  fontSize: 15,
+                  fontWeight: fContributor === opt.id ? 600 : 400,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  boxSizing: "border-box",
+                }}
+              >
+                {opt.name}
+                {fContributor === opt.id && <span style={{ color: G, fontSize: 16 }}>✓</span>}
               </button>
             ))}
           </div>
