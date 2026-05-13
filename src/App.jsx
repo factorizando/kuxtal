@@ -60,6 +60,16 @@ export default function App() {
   const [myRoleInGroup, setMyRoleInGroup] = useState(null);
   const [patients, setPatients] = useState([]);
 
+  const SCREENS = ["app", "family", "budget"];
+  function handleSwipeScreen(direction) {
+    setScreen((cur) => {
+      const i = SCREENS.indexOf(cur);
+      if (direction === "left" && i < SCREENS.length - 1) return SCREENS[i + 1];
+      if (direction === "right" && i > 0) return SCREENS[i - 1];
+      return cur;
+    });
+  }
+
   // Auto-detectar pacientes del grupo y preseleccionar el primero
   useEffect(() => {
     if (!user) return;
@@ -148,6 +158,7 @@ export default function App() {
             patients={patients}
             onOpenProfile={() => setScreen("profile")}
             myRoleInGroup={myRoleInGroup}
+            onSwipeScreen={handleSwipeScreen}
           />
         )}
         {screen === "family" && (
@@ -211,23 +222,22 @@ export default function App() {
           onClick={() => setScreen("profile")}
           style={{
             flex: 1,
-            padding: "6px 0",
+            padding: "10px 0",
             border: "none",
             background: "transparent",
             cursor: "pointer",
             borderTop: `2.5px solid ${screen === "profile" ? G : "transparent"}`,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 2,
+            color: screen === "profile" ? G : mu,
           }}
         >
-          <Avatar profile={profile} user={user} size={28} />
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: 24 }}>
+            <Avatar profile={profile} user={user} size={24} />
+          </div>
           <div
             style={{
               fontSize: 11,
               fontWeight: screen === "profile" ? 600 : 400,
-              color: screen === "profile" ? G : mu,
+              marginTop: 2,
             }}
           >
             Perfil

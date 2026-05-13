@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useSwipe } from "../hooks/useSwipe";
 import {
   AreaChart,
   Area,
@@ -182,6 +183,8 @@ function RangeInput({ label, value, min, max, unit, onChange, color }) {
   );
 }
 
+const SUB_TABS = ["inicio", "registrar", "historial", "config"];
+
 export default function MainApp({
   user,
   profile,
@@ -192,6 +195,7 @@ export default function MainApp({
   patients,
   onOpenProfile,
   myRoleInGroup,
+  onSwipeScreen,
 }) {
   const {
     gluReadings,
@@ -210,6 +214,33 @@ export default function MainApp({
   const canDelete = myRoleInGroup === "admin" || !viewingPatient;
   const [showPersonSelector, setShowPersonSelector] = useState(false);
   const [tab, setTab] = useState("inicio");
+
+  const swipeHandlers = useSwipe({
+    onSwipeLeft(startY) {
+      if (startY < window.innerHeight * 0.65) {
+        // Zona superior → navegar sub-tabs hacia la derecha
+        setTab((t) => {
+          const i = SUB_TABS.indexOf(t);
+          return SUB_TABS[Math.min(i + 1, SUB_TABS.length - 1)];
+        });
+      } else {
+        // Zona inferior → navegar pantalla principal hacia la derecha
+        onSwipeScreen?.("left");
+      }
+    },
+    onSwipeRight(startY) {
+      if (startY < window.innerHeight * 0.65) {
+        // Zona superior → navegar sub-tabs hacia la izquierda
+        setTab((t) => {
+          const i = SUB_TABS.indexOf(t);
+          return SUB_TABS[Math.max(i - 1, 0)];
+        });
+      } else {
+        // Zona inferior → navegar pantalla principal hacia la izquierda
+        onSwipeScreen?.("right");
+      }
+    },
+  });
   const [subTab, setSubTab] = useState("glucosa");
   const [histTab, setHistTab] = useState("glucosa");
   const [cfg, setCfg] = useState({
@@ -387,6 +418,7 @@ export default function MainApp({
 
   return (
     <div
+      {...swipeHandlers}
       style={{
         background: bg,
         fontFamily: "system-ui,-apple-system,sans-serif",
