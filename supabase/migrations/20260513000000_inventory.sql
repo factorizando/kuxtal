@@ -5,7 +5,7 @@
 -- Artículos del inventario
 create table if not exists inventory_items (
   id                   uuid primary key default gen_random_uuid(),
-  group_id             uuid not null references family_groups(id) on delete cascade,
+  group_id             bigint not null references family_groups(id) on delete cascade,
   created_by           uuid not null references profiles(id),
   name                 text not null,
   unit                 text not null,
@@ -21,7 +21,7 @@ create table if not exists inventory_items (
 create table if not exists inventory_restocks (
   id              uuid primary key default gen_random_uuid(),
   item_id         uuid not null references inventory_items(id) on delete cascade,
-  group_id        uuid not null references family_groups(id) on delete cascade,
+  group_id        bigint not null references family_groups(id) on delete cascade,
   recorded_by     uuid not null references profiles(id),
   quantity        numeric(10,3) not null check (quantity > 0),
   price           numeric(10,2) check (price >= 0),
@@ -44,7 +44,7 @@ alter table inventory_items    enable row level security;
 alter table inventory_restocks enable row level security;
 
 -- Helper: verifica membresía en el grupo (create or replace para idempotencia)
-create or replace function is_group_member(gid uuid)
+create or replace function is_group_member(gid bigint)
 returns boolean language sql security definer stable as $$
   select exists (
     select 1 from family_memberships
