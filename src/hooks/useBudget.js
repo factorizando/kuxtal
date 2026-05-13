@@ -59,12 +59,15 @@ export function useBudget(groupId) {
     file,
     recordedBy,
   }) {
+    // contributorId puede ser un UUID de perfil o un valor especial como "bienestar"
+    const isProfileContributor = contributorId && contributorId.includes("-");
     const { data, error } = await supabase
       .from("budget_entries")
       .insert({
         group_id: groupId,
         recorded_by: recordedBy,
-        contributor_id: type === "income" ? contributorId || null : null,
+        contributor_id: type === "income" && isProfileContributor ? contributorId : null,
+        contributor_label: type === "income" && !isProfileContributor && contributorId ? contributorId : null,
         type,
         amount: parseFloat(amount),
         category,

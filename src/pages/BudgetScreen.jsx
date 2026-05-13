@@ -10,16 +10,18 @@ const G = "#059669",
   rd = "#EF4444";
 
 const EXPENSE_CATEGORIES = [
+  "Consulta médica",
+  "Terapia Física",
   "Medicamentos",
   "Insulina",
   "Jeringas/Plumas",
   "Tiras reactivas",
   "Lancetas",
   "Glucómetro",
-  "Consulta médica",
-  "Terapia Física",
   "Otro",
 ];
+
+const INCOME_CATEGORIES = ["Aportación", "Pensión"];
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -125,9 +127,9 @@ function EntryCard({ entry, canEdit, onDelete, onViewReceipt }) {
         <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>
           {entry.category}
         </div>
-        {entry.contributor?.full_name && (
+        {(entry.contributor?.full_name || entry.contributor_label) && (
           <div style={{ fontSize: 12, color: mu, marginTop: 2 }}>
-            👤 {entry.contributor.full_name}
+            👤 {entry.contributor?.full_name || entry.contributor_label}
           </div>
         )}
         {entry.note && (
@@ -192,6 +194,7 @@ export default function BudgetScreen({ userId }) {
   const [fPreview, setFPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
+  const [showCategorySheet, setShowCategorySheet] = useState(false);
 
   const canEdit = myRole === "admin" || myRole === "caregiver";
 
@@ -606,33 +609,84 @@ export default function BudgetScreen({ userId }) {
               />
             </Field>
 
+            {/* Categoría — chips para ingreso, bottom sheet para gasto */}
             <Field label="Categoría">
-              <select
-                value={fCategory}
-                onChange={(e) => setFCategory(e.target.value)}
-                style={inputSt}
-              >
-                <option value="">Seleccionar...</option>
-                {(fType === "income" ? ["Aportación"] : EXPENSE_CATEGORIES).map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+              {fType === "income" ? (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {INCOME_CATEGORIES.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setFCategory(c)}
+                      style={{
+                        padding: "8px 18px",
+                        border: `2px solid ${fCategory === c ? G : bd}`,
+                        borderRadius: 20,
+                        background: fCategory === c ? `${G}15` : wh,
+                        color: fCategory === c ? G : mu,
+                        fontWeight: fCategory === c ? 600 : 400,
+                        fontSize: 14,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowCategorySheet(true)}
+                  style={{
+                    ...inputSt,
+                    textAlign: "left",
+                    cursor: "pointer",
+                    color: fCategory ? "#111827" : "#9CA3AF",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    border: `1px solid ${bd}`,
+                  }}
+                >
+                  <span>{fCategory || "Seleccionar categoría..."}</span>
+                  <span style={{ color: mu, fontSize: 13 }}>›</span>
+                </button>
+              )}
             </Field>
 
+            {/* Aportado por — select nativo estilizado (solo ingreso) */}
             {fType === "income" && (
               <Field label="Aportado por">
-                <select
-                  value={fContributor}
-                  onChange={(e) => setFContributor(e.target.value)}
-                  style={inputSt}
-                >
-                  <option value="">Seleccionar integrante...</option>
-                  {members.map((m) => (
-                    <option key={m.profiles.id} value={m.profiles.id}>
-                      {m.profiles.full_name || "Sin nombre"}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ position: "relative" }}>
+                  <select
+                    value={fContributor}
+                    onChange={(e) => setFContributor(e.target.value)}
+                    style={{
+                      ...inputSt,
+                      appearance: "none",
+                      WebkitAppearance: "none",
+                      paddingRight: 36,
+                      cursor: "pointer",
+                      background: wh,
+                    }}
+                  >
+                    <option value="">Seleccionar integrante...</option>
+                    <option value="bienestar">Bienestar</option>
+                    {members.map((m) => (
+                      <option key={m.profiles.id} value={m.profiles.id}>
+                        {m.profiles.full_name || "Sin nombre"}
+                      </option>
+                    ))}
+                  </select>
+                  <span style={{
+                    position: "absolute",
+                    right: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    pointerEvents: "none",
+                    color: mu,
+                    fontSize: 12,
+                    lineHeight: 1,
+                  }}>▼</span>
+                </div>
               </Field>
             )}
 
@@ -709,6 +763,48 @@ export default function BudgetScreen({ userId }) {
             >
               {saving ? "Guardando..." : "Guardar movimiento"}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bottom sheet: categorías de gasto ── */}
+      {showCategorySheet && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", zIndex: 55, display: "flex", alignItems: "flex-end" }}
+          onClick={() => setShowCategorySheet(false)}
+        >
+          <div
+            style={{ background: wh, borderRadius: "20px 20px 0 0", width: "100%", paddingBottom: 32, boxSizing: "border-box" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: "20px 20px 12px", fontSize: 15, fontWeight: 700, color: "#111827", borderBottom: `1px solid ${bd}` }}>
+              Categoría de gasto
+            </div>
+            {EXPENSE_CATEGORIES.map((c) => (
+              <button
+                key={c}
+                onClick={() => { setFCategory(c); setShowCategorySheet(false); }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  padding: "15px 20px",
+                  border: "none",
+                  borderBottom: `1px solid ${bd}`,
+                  background: fCategory === c ? `${G}0D` : "none",
+                  color: fCategory === c ? G : "#111827",
+                  fontSize: 15,
+                  fontWeight: fCategory === c ? 600 : 400,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  boxSizing: "border-box",
+                }}
+              >
+                {c}
+                {fCategory === c && <span style={{ color: G, fontSize: 16 }}>✓</span>}
+              </button>
+            ))}
           </div>
         </div>
       )}
