@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { usePushNotifications } from "../hooks/usePushNotifications";
+import { useSwipe } from "../hooks/useSwipe";
 
 const G = "#059669",
   tx = "#111827",
@@ -52,6 +53,7 @@ function RangeInput({ label, value, min, max, unit, onChange, color }) {
 export default function ProfileScreen({ onClose, signOut }) {
   const { user, profile, updateProfile, uploadAvatar } = useAuth();
   const { permission, subscribed, subscribe, unsubscribe } = usePushNotifications(user?.id);
+  const swipeHandlers = useSwipe({ onSwipeRight: onClose });
 
   const [name, setName] = useState(profile?.full_name || "");
   const [ranges, setRanges] = useState({
@@ -115,7 +117,7 @@ export default function ProfileScreen({ onClose, signOut }) {
     .slice(0, 2);
 
   return (
-    <div style={{ background: bg, minHeight: "100vh", fontFamily: "system-ui,-apple-system,sans-serif" }}>
+    <div {...swipeHandlers} style={{ background: bg, minHeight: "100vh", fontFamily: "system-ui,-apple-system,sans-serif" }}>
 
       {/* Header */}
       <div style={{ background: hd, padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>

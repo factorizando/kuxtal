@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useFamily } from "../hooks/useFamily";
 import { useBudget } from "../hooks/useBudget";
+import { useSwipe } from "../hooks/useSwipe";
 
 const G = "#059669",
   mu = "#6B7280",
@@ -171,7 +172,11 @@ function EntryCard({ entry, canEdit, onDelete, onViewReceipt }) {
   );
 }
 
-export default function BudgetScreen({ userId }) {
+export default function BudgetScreen({ userId, onSwipeScreen }) {
+  const swipeHandlers = useSwipe({
+    onSwipeLeft: () => onSwipeScreen?.("left"),
+    onSwipeRight: () => onSwipeScreen?.("right"),
+  });
   const { groups, activeGroup, members, myRole, loading: groupLoading, selectGroup } =
     useFamily(userId);
   const { entries, loading: budgetLoading, addEntry, deleteEntry } = useBudget(
@@ -323,6 +328,7 @@ export default function BudgetScreen({ userId }) {
   // ── Pantalla ───────────────────────────────────────────────
   return (
     <div
+      {...swipeHandlers}
       style={{
         fontFamily: "system-ui,-apple-system,sans-serif",
         background: bg,

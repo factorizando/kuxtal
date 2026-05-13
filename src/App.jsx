@@ -70,6 +70,20 @@ export default function App() {
     });
   }
 
+  // History API: intercepta el gesto nativo "volver" del sistema cuando el Perfil está abierto
+  useEffect(() => {
+    if (screen === "profile") {
+      history.pushState({ kuxtal: "profile" }, "");
+    }
+  }, [screen]);
+  useEffect(() => {
+    function onPop() {
+      setScreen((cur) => (cur === "profile" ? "app" : cur));
+    }
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   // Auto-detectar pacientes del grupo y preseleccionar el primero
   useEffect(() => {
     if (!user) return;
@@ -167,9 +181,10 @@ export default function App() {
             onViewPatient={handleViewPatient}
             viewingPatient={viewingPatient}
             onRoleChange={setMyRoleInGroup}
+            onSwipeScreen={handleSwipeScreen}
           />
         )}
-        {screen === "budget" && <BudgetScreen userId={user.id} />}
+        {screen === "budget" && <BudgetScreen userId={user.id} onSwipeScreen={handleSwipeScreen} />}
       </div>
 
       {/* Navegación inferior */}

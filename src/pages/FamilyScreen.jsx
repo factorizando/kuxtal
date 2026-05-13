@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useFamily } from "../hooks/useFamily";
+import { useSwipe } from "../hooks/useSwipe";
 
 const G = "#059669",
   tx = "#111827",
@@ -62,7 +63,12 @@ export default function FamilyScreen({
   onViewPatient,
   viewingPatient,
   onRoleChange,
+  onSwipeScreen,
 }) {
+  const swipeHandlers = useSwipe({
+    onSwipeLeft: () => onSwipeScreen?.("left"),
+    onSwipeRight: () => onSwipeScreen?.("right"),
+  });
   const {
     groups,
     activeGroup,
@@ -224,6 +230,7 @@ export default function FamilyScreen({
 
   return (
     <div
+      {...swipeHandlers}
       style={{
         background: bg,
         minHeight: "100vh",
