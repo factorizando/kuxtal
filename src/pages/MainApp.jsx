@@ -188,6 +188,8 @@ export default function MainApp({
   signOut,
   targetUserId,
   viewingPatient,
+  onSelectPatient,
+  patients,
   onOpenProfile,
   myRoleInGroup,
 }) {
@@ -206,6 +208,7 @@ export default function MainApp({
   const isViewer =
     !!viewingPatient && !["admin", "caregiver"].includes(myRoleInGroup);
   const canDelete = myRoleInGroup === "admin" || !viewingPatient;
+  const [showPersonSelector, setShowPersonSelector] = useState(false);
   const [tab, setTab] = useState("inicio");
   const [subTab, setSubTab] = useState("glucosa");
   const [histTab, setHistTab] = useState("glucosa");
@@ -400,25 +403,44 @@ export default function MainApp({
           alignItems: "center",
         }}
       >
-        <div>
-          <div
-            style={{
-              color: "#6B7280",
-              fontSize: 10,
-              letterSpacing: 2,
-              textTransform: "uppercase",
-            }}
-          >
-            KuXtaL
-          </div>
-          <div
-            style={{ color: wh, fontSize: 14, fontWeight: 600, marginTop: 2 }}
-          >
-            {viewingPatient
-              ? viewingPatient.name
-              : profile?.full_name || user.email}
-          </div>
-        </div>
+        {/* Nombre / selector de persona */}
+        {(() => {
+          const isUserPatient = patients.some((p) => p.id === user.id);
+          const selfOption = { id: null, name: profile?.full_name || user.email, isSelf: true };
+          const options = isUserPatient ? patients : [...patients, selfOption];
+          const currentName = viewingPatient?.name || profile?.full_name || user.email;
+          const hasOptions = options.length > 1;
+
+          return (
+            <div>
+              <div style={{ color: "#6B7280", fontSize: 10, letterSpacing: 2, textTransform: "uppercase" }}>
+                KuXtaL
+              </div>
+              {hasOptions ? (
+                <button
+                  onClick={() => setShowPersonSelector(true)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    marginTop: 2,
+                  }}
+                >
+                  <span style={{ color: wh, fontSize: 14, fontWeight: 600 }}>{currentName}</span>
+                  <span style={{ color: "#9CA3AF", fontSize: 11 }}>∨</span>
+                </button>
+              ) : (
+                <div style={{ color: wh, fontSize: 14, fontWeight: 600, marginTop: 2 }}>
+                  {currentName}
+                </div>
+              )}
+            </div>
+          );
+        })()}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div
             onClick={onOpenProfile}
@@ -1523,6 +1545,61 @@ export default function MainApp({
           </>
         )}
       </div>
+
+      {/* ── Bottom sheet: selector de persona ── */}
+      {showPersonSelector && (() => {
+        const isUserPatient = patients.some((p) => p.id === user.id);
+        const selfOption = { id: null, name: profile?.full_name || user.email, isSelf: true };
+        const options = isUserPatient ? patients : [...patients, selfOption];
+        const selectedId = viewingPatient?.id ?? null;
+
+        return (
+          <div
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 50, display: "flex", alignItems: "flex-end" }}
+            onClick={() => setShowPersonSelector(false)}
+          >
+            <div
+              style={{ background: wh, borderRadius: "20px 20px 0 0", width: "100%", paddingBottom: 32, boxSizing: "border-box" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ padding: "20px 20px 12px", fontSize: 15, fontWeight: 700, color: hd, borderBottom: `1px solid ${bd}` }}>
+                Ver datos de...
+              </div>
+              {options.map((opt) => {
+                const isSelected = opt.id === selectedId;
+                return (
+                  <button
+                    key={opt.id ?? "self"}
+                    onClick={() => { onSelectPatient(opt.isSelf ? null : opt); setShowPersonSelector(false); }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      width: "100%",
+                      padding: "15px 20px",
+                      border: "none",
+                      borderBottom: `1px solid ${bd}`,
+                      background: isSelected ? "#ECFDF5" : "none",
+                      cursor: "pointer",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <div style={{ textAlign: "left" }}>
+                      <div style={{ fontSize: 15, fontWeight: isSelected ? 600 : 400, color: isSelected ? G : hd }}>
+                        {opt.name}
+                      </div>
+                      <div style={{ fontSize: 12, color: mu, marginTop: 2 }}>
+                        {opt.isSelf ? "Tú" : "Paciente"}
+                      </div>
+                    </div>
+                    {isSelected && <span style={{ color: G, fontSize: 18 }}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "./hooks/useAuth";
+import { supabase } from "./lib/supabase";
 import AuthScreen from "./components/AuthScreen";
 import MainApp from "./pages/MainApp";
 import FamilyScreen from "./pages/FamilyScreen";
@@ -57,6 +58,53 @@ export default function App() {
   const [screen, setScreen] = useState("app");
   const [viewingPatient, setViewingPatient] = useState(null);
   const [myRoleInGroup, setMyRoleInGroup] = useState(null);
+  const [patients, setPatients] = useState([]);
+
+  // Auto-detectar pacientes del grupo y preseleccionar el primero
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data: myGroups } = await supabase
+        .from("family_memberships")
+        .select("group_id, role")
+        .eq("user_id", user.id);
+
+      if (!myGroups?.length) return;
+
+      // Establecer rol del usuario en el grupo
+      const firstRole = myGroups[0]?.role;
+      if (firstRole) setMyRoleInGroup(firstRole);
+
+      const groupIds = [...new Set(myGroups.map((g) => g.group_id))];
+
+      const { data: patientMembers } = await supabase
+        .from("family_memberships")
+        .select("user_id, profiles(id, full_name)")
+        .in("group_id", groupIds)
+        .eq("role", "patient");
+
+      // Deduplicar por user_id
+      const seen = new Set();
+      const unique = (patientMembers || [])
+        .filter((m) => {
+          if (seen.has(m.user_id)) return false;
+          seen.add(m.user_id);
+          return true;
+        })
+        .map((m) => ({
+          id: m.profiles.id,
+          name: m.profiles.full_name || "Paciente",
+        }));
+
+      setPatients(unique);
+
+      // Preseleccionar primer paciente si el usuario logueado no es paciente
+      const isUserPatient = unique.some((p) => p.id === user.id);
+      if (!isUserPatient && unique.length > 0) {
+        setViewingPatient((prev) => prev ?? unique[0]);
+      }
+    })();
+  }, [user?.id]);
 
   function handleViewPatient(patient) {
     setViewingPatient(patient);
@@ -82,48 +130,11 @@ export default function App() {
 
   if (!user) return <AuthScreen />;
 
-  // Pantalla de perfil — ocupa toda la pantalla
   if (screen === "profile")
     return <ProfileScreen onClose={() => setScreen("app")} signOut={signOut} />;
 
   return (
     <div style={{ fontFamily: "system-ui,-apple-system,sans-serif" }}>
-      {/* Banner: viendo datos de paciente */}
-      {viewingPatient && screen === "app" && (
-        <div
-          style={{
-            background: "#1D4ED8",
-            color: wh,
-            padding: "8px 16px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            fontSize: 13,
-            position: "sticky",
-            top: 0,
-            zIndex: 30,
-          }}
-        >
-          <span>
-            👁 Viendo datos de <strong>{viewingPatient.name}</strong>
-          </span>
-          <button
-            onClick={() => setViewingPatient(null)}
-            style={{
-              background: "rgba(255,255,255,0.2)",
-              border: "none",
-              borderRadius: 20,
-              padding: "3px 12px",
-              color: wh,
-              fontSize: 12,
-              cursor: "pointer",
-            }}
-          >
-            Salir
-          </button>
-        </div>
-      )}
-
       {/* Contenido */}
       <div style={{ paddingBottom: 70 }}>
         {screen === "app" && (
@@ -133,6 +144,8 @@ export default function App() {
             signOut={signOut}
             targetUserId={viewingPatient?.id || null}
             viewingPatient={viewingPatient}
+            onSelectPatient={setViewingPatient}
+            patients={patients}
             onOpenProfile={() => setScreen("profile")}
             myRoleInGroup={myRoleInGroup}
           />
@@ -162,7 +175,7 @@ export default function App() {
         }}
       >
         {[
-          ["app", "📊", "Mi salud"],
+          ["app", "📊", "Salud"],
           ["family", "👨‍👩‍👧", "Familia"],
           ["budget", "💰", "Presupuesto"],
         ].map(([id, icon, lbl]) => (
