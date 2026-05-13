@@ -4,6 +4,7 @@ import AuthScreen from "./components/AuthScreen";
 import MainApp from "./pages/MainApp";
 import FamilyScreen from "./pages/FamilyScreen";
 import ProfileScreen from "./pages/ProfileScreen";
+import BudgetScreen from "./pages/BudgetScreen";
 
 const G = "#059669",
   mu = "#6B7280",
@@ -144,6 +145,7 @@ export default function App() {
             onRoleChange={setMyRoleInGroup}
           />
         )}
+        {screen === "budget" && <BudgetScreen userId={user.id} />}
       </div>
 
       {/* Navegación inferior */}
@@ -162,6 +164,7 @@ export default function App() {
         {[
           ["app", "📊", "Mi salud"],
           ["family", "👨‍👩‍👧", "Familia"],
+          ["budget", "💰", "Presupuesto"],
         ].map(([id, icon, lbl]) => (
           <button
             key={id}
