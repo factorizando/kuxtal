@@ -36,7 +36,7 @@ export function useInventory(groupId) {
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
-  async function addItem({ name, unit, consumptionPerDay, currentQuantity, alertThresholdDays, notes, createdBy }) {
+  async function addItem({ name, unit, consumptionPerDay, currentQuantity, alertThresholdDays, notes, createdBy, unitsPerPack }) {
     const { error } = await supabase.from("inventory_items").insert({
       group_id: groupId,
       created_by: createdBy,
@@ -47,6 +47,7 @@ export function useInventory(groupId) {
       quantity_updated_at: new Date().toISOString(),
       alert_threshold_days: alertThresholdDays || 14,
       notes: notes?.trim() || null,
+      units_per_pack: unitsPerPack || null,
     });
     if (error) throw error;
     await fetchItems();

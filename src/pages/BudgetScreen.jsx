@@ -74,7 +74,7 @@ function SummaryCard({ label, value, color, bold }) {
   );
 }
 
-function EntryCard({ entry, canEdit, canDelete, onDelete, onViewReceipt }) {
+function EntryCard({ entry, canDelete, onDelete, onViewReceipt }) {
   const isIncome = entry.type === "income";
   const color = isIncome ? G : rd;
   const sign = isIncome ? "+" : "−";
@@ -125,7 +125,10 @@ function InventoryItemCard({ item, canEdit, onRestock, onDetail, onAdjust }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>{item.name}</div>
-          <div style={{ fontSize: 12, color: mu, marginTop: 2 }}>{item.consumption_per_day} {item.unit}/día</div>
+          <div style={{ fontSize: 12, color: mu, marginTop: 2 }}>
+            {item.consumption_per_day} {item.unit}/día
+            {item.units_per_pack && <span> · 📦 cajas de {item.units_per_pack}</span>}
+          </div>
         </div>
         {canEdit && (
           <button onClick={onRestock} style={{ padding: "6px 12px", background: G, color: wh, border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
@@ -215,6 +218,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
 
   const [iName, setIName] = useState("");
   const [iUnit, setIUnit] = useState("tabletas");
+  const [iUnitsPerPack, setIUnitsPerPack] = useState("");
   const [iConsumo, setIConsumo] = useState("");
   const [iCantidad, setICantidad] = useState("");
   const [iAlerta, setIAlerta] = useState("14");
@@ -223,6 +227,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [addItemError, setAddItemError] = useState(null);
 
   const [rQuantity, setRQuantity] = useState("");
+  const [rBoxes, setRBoxes] = useState("");
   const [rBrand, setRBrand] = useState("");
   const [rStore, setRStore] = useState("");
   const [rPrice, setRPrice] = useState("");
@@ -307,7 +312,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
 
   // ── Inventario handlers ───────────────────────────────────
   function openAddItem() {
-    setIName(""); setIUnit("tabletas"); setIConsumo(""); setICantidad("");
+    setIName(""); setIUnit("tabletas"); setIUnitsPerPack(""); setIConsumo(""); setICantidad("");
     setIAlerta("14"); setINotes(""); setAddItemError(null);
     setShowAddItem(true);
   }
@@ -318,9 +323,11 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     if (!iConsumo || isNaN(consumo) || consumo <= 0) { setAddItemError("Ingresa un consumo diario válido"); return; }
     const cantidad = parseFloat(iCantidad);
     if (iCantidad === "" || isNaN(cantidad) || cantidad < 0) { setAddItemError("Ingresa la cantidad actual"); return; }
+    const unitsPerPack = iUnitsPerPack ? parseInt(iUnitsPerPack) : null;
+    if (iUnitsPerPack && (isNaN(unitsPerPack) || unitsPerPack < 2)) { setAddItemError("La presentación debe tener al menos 2 unidades"); return; }
     setAddItemSaving(true); setAddItemError(null);
     try {
-      await addItem({ name: iName, unit: iUnit, consumptionPerDay: consumo, currentQuantity: cantidad, alertThresholdDays: parseInt(iAlerta) || 14, notes: iNotes, createdBy: userId });
+      await addItem({ name: iName, unit: iUnit, consumptionPerDay: consumo, currentQuantity: cantidad, alertThresholdDays: parseInt(iAlerta) || 14, notes: iNotes, createdBy: userId, unitsPerPack });
       setShowAddItem(false);
     } catch (e) {
       setAddItemError(e.message || "Error al guardar");
@@ -330,14 +337,21 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   }
 
   function openRestock(item) {
-    setRQuantity(""); setRBrand(""); setRStore(""); setRPrice("");
+    setRQuantity(""); setRBoxes(""); setRBrand(""); setRStore(""); setRPrice("");
     setRDate(todayStr()); setRNotes(""); setRCreateBudget(true); setRestockError(null);
     setShowRestock(item);
   }
 
   async function handleRestock() {
-    const qty = parseFloat(rQuantity);
-    if (!rQuantity || isNaN(qty) || qty <= 0) { setRestockError("Ingresa una cantidad válida"); return; }
+    let qty;
+    if (showRestock.units_per_pack) {
+      const boxes = parseInt(rBoxes);
+      if (!rBoxes || isNaN(boxes) || boxes <= 0) { setRestockError("Ingresa el número de cajas"); return; }
+      qty = boxes * showRestock.units_per_pack;
+    } else {
+      qty = parseFloat(rQuantity);
+      if (!rQuantity || isNaN(qty) || qty <= 0) { setRestockError("Ingresa una cantidad válida"); return; }
+    }
     if (!rDate) { setRestockError("Ingresa la fecha de compra"); return; }
     setRSaving(true); setRestockError(null);
     try {
@@ -691,11 +705,19 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
               <span style={{ color: mu, fontSize: 13 }}>›</span>
             </button>
           </Field>
+          <Field label={`${iUnit.charAt(0).toUpperCase() + iUnit.slice(1)} por presentación (opcional)`}>
+            <input type="number" inputMode="numeric" placeholder={`ej. 7 si se vende en cajas de 7 ${iUnit}`} value={iUnitsPerPack} onChange={(e) => setIUnitsPerPack(e.target.value)} min="2" step="1" style={inputSt} />
+          </Field>
           <Field label={`Consumo diario (${iUnit}/día)`}>
             <input type="number" inputMode="decimal" placeholder="ej. 2" value={iConsumo} onChange={(e) => setIConsumo(e.target.value)} min="0.01" step="0.5" style={inputSt} />
           </Field>
           <Field label={`Cantidad actual (${iUnit})`}>
             <input type="number" inputMode="decimal" placeholder="¿Cuántos tienes ahora?" value={iCantidad} onChange={(e) => setICantidad(e.target.value)} min="0" step="1" style={inputSt} />
+            {iUnitsPerPack && parseInt(iUnitsPerPack) >= 2 && iCantidad && parseFloat(iCantidad) > 0 && (
+              <div style={{ fontSize: 12, color: mu, marginTop: 6 }}>
+                = {(parseFloat(iCantidad) / parseInt(iUnitsPerPack)).toFixed(1)} cajas de {iUnitsPerPack} {iUnit}
+              </div>
+            )}
           </Field>
           <Field label="Alertar cuando queden (días)">
             <input type="number" inputMode="numeric" value={iAlerta} onChange={(e) => setIAlerta(e.target.value)} min="1" max="90" step="1" style={inputSt} />
@@ -712,9 +734,20 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
 
       {showRestock && (
         <Sheet onClose={() => setShowRestock(null)} title={`Reabastecer · ${showRestock.name}`}>
-          <Field label={`Cantidad comprada (${showRestock.unit})`}>
-            <input type="number" inputMode="decimal" placeholder="0" value={rQuantity} onChange={(e) => setRQuantity(e.target.value)} min="0.01" step="1" style={inputSt} />
-          </Field>
+          {showRestock.units_per_pack ? (
+            <Field label="Número de cajas compradas">
+              <input type="number" inputMode="numeric" placeholder="0" value={rBoxes} onChange={(e) => setRBoxes(e.target.value)} min="1" step="1" style={inputSt} />
+              {rBoxes && parseInt(rBoxes) > 0 && (
+                <div style={{ fontSize: 13, color: G, fontWeight: 600, marginTop: 6 }}>
+                  = {parseInt(rBoxes) * showRestock.units_per_pack} {showRestock.unit}
+                </div>
+              )}
+            </Field>
+          ) : (
+            <Field label={`Cantidad comprada (${showRestock.unit})`}>
+              <input type="number" inputMode="decimal" placeholder="0" value={rQuantity} onChange={(e) => setRQuantity(e.target.value)} min="0.01" step="1" style={inputSt} />
+            </Field>
+          )}
           <Field label="Marca / Patente">
             <input type="text" placeholder="ej. Metformina Norma, Glucophage, Pisa..." value={rBrand} onChange={(e) => setRBrand(e.target.value)} style={inputSt} />
           </Field>
@@ -758,6 +791,9 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
             </div>
             <div style={{ fontSize: 13, color: mu, marginTop: 2 }}>
               ~{Math.round(calcDaysRemaining(showDetail))} días · {showDetail.consumption_per_day} {showDetail.unit}/día
+              {showDetail.units_per_pack && (
+                <span> · 📦 cajas de {showDetail.units_per_pack}</span>
+              )}
             </div>
           </div>
 
