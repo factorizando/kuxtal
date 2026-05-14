@@ -58,16 +58,44 @@ export function useInventory(groupId) {
     setItems((prev) => prev.filter((i) => i.id !== id));
   }
 
-  async function adjustQuantity(itemId, newQuantity) {
-    const { error } = await supabase
+  async function adjustQuantity(itemId, newQuantity, adjustedBy) {
+    const item = items.find((i) => i.id === itemId);
+    if (!item) throw new Error("Artículo no encontrado");
+
+    const elapsedDays = (Date.now() - new Date(item.quantity_updated_at).getTime()) / 86400000;
+    const oldQuantity = Math.max(0, item.current_quantity - item.consumption_per_day * elapsedDays);
+
+    const { error: updateErr } = await supabase
       .from("inventory_items")
       .update({
         current_quantity: newQuantity,
         quantity_updated_at: new Date().toISOString(),
       })
       .eq("id", itemId);
-    if (error) throw error;
+    if (updateErr) throw updateErr;
+
+    // Registrar el ajuste en el historial
+    const { error: logErr } = await supabase.from("inventory_adjustments").insert({
+      item_id: itemId,
+      group_id: groupId,
+      adjusted_by: adjustedBy,
+      old_quantity: parseFloat(oldQuantity.toFixed(3)),
+      new_quantity: newQuantity,
+    });
+    if (logErr) throw logErr;
+
     await fetchItems();
+  }
+
+  async function fetchAdjustments(itemId) {
+    const { data, error } = await supabase
+      .from("inventory_adjustments")
+      .select("*, profiles(full_name)")
+      .eq("item_id", itemId)
+      .order("adjusted_at", { ascending: false })
+      .limit(20);
+    if (error) throw error;
+    return data || [];
   }
 
   async function restock({ itemId, quantity, price, brand, store, purchasedAt, notes, recordedBy, createBudgetEntry, itemName }) {
@@ -139,5 +167,5 @@ export function useInventory(groupId) {
     return data || [];
   }
 
-  return { items, loading, addItem, deleteItem, adjustQuantity, restock, fetchRestocks, refetch: fetchItems };
+  return { items, loading, addItem, deleteItem, adjustQuantity, restock, fetchRestocks, fetchAdjustments, refetch: fetchItems };
 }

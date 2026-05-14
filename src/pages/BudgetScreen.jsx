@@ -386,7 +386,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     if (adjQuantity === "" || isNaN(qty) || qty < 0) { setAdjError("Ingresa una cantidad válida"); return; }
     setAdjSaving(true); setAdjError(null);
     try {
-      await adjustQuantity(showAdjust.id, qty);
+      await adjustQuantity(showAdjust.id, qty, userId);
       setShowAdjust(null);
     } catch (e) {
       setAdjError(e.message || "Error al ajustar");
