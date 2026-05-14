@@ -99,14 +99,35 @@ export function useInventory(groupId) {
     return data || [];
   }
 
+  async function updateItem(id, { name, unit, consumptionPerDay, alertThresholdDays, notes, unitsPerPack }) {
+    const { error } = await supabase
+      .from("inventory_items")
+      .update({
+        name: name.trim(),
+        unit: unit.trim(),
+        consumption_per_day: consumptionPerDay,
+        alert_threshold_days: alertThresholdDays || 14,
+        notes: notes?.trim() || null,
+        units_per_pack: unitsPerPack || null,
+      })
+      .eq("id", id);
+    if (error) throw error;
+    await fetchItems();
+  }
+
   async function restock({ itemId, quantity, price, brand, store, purchasedAt, notes, recordedBy, createBudgetEntry, itemName }) {
     const item = items.find((i) => i.id === itemId);
     if (!item) throw new Error("Artículo no encontrado");
 
-    // Stock restante actual + cantidad comprada
-    const elapsedDays = (Date.now() - new Date(item.quantity_updated_at).getTime()) / 86400000;
-    const currentRemaining = Math.max(0, item.current_quantity - item.consumption_per_day * elapsedDays);
-    const newQuantity = currentRemaining + quantity;
+    // Usar la fecha de compra como referencia para el cálculo, descontando
+    // consumo desde esa fecha. Se clampea entre la última actualización y hoy.
+    const purchasedAtTs = new Date(purchasedAt + "T12:00:00").getTime();
+    const lastUpdateTs = new Date(item.quantity_updated_at).getTime();
+    const effectiveTs = Math.max(lastUpdateTs, Math.min(purchasedAtTs, Date.now()));
+    const elapsedToEffective = (effectiveTs - lastUpdateTs) / 86400000;
+    const stockAtEffective = Math.max(0, item.current_quantity - item.consumption_per_day * elapsedToEffective);
+    const newQuantity = stockAtEffective + quantity;
+    const newUpdatedAt = new Date(effectiveTs).toISOString();
 
     // Crear gasto en presupuesto si se solicitó
     let budgetEntryId = null;
@@ -149,7 +170,7 @@ export function useInventory(groupId) {
       .from("inventory_items")
       .update({
         current_quantity: newQuantity,
-        quantity_updated_at: new Date().toISOString(),
+        quantity_updated_at: newUpdatedAt,
       })
       .eq("id", itemId);
     if (updateErr) throw updateErr;
@@ -168,5 +189,5 @@ export function useInventory(groupId) {
     return data || [];
   }
 
-  return { items, loading, addItem, deleteItem, adjustQuantity, restock, fetchRestocks, fetchAdjustments, refetch: fetchItems };
+  return { items, loading, addItem, updateItem, deleteItem, adjustQuantity, restock, fetchRestocks, fetchAdjustments, refetch: fetchItems };
 }

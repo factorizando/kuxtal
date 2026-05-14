@@ -184,7 +184,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   });
   const { groups, activeGroup, members, myRole, loading: groupLoading, selectGroup } = useFamily(userId);
   const { entries, loading: budgetLoading, addEntry, deleteEntry } = useBudget(activeGroup?.id);
-  const { items: invItems, loading: invLoading, addItem, deleteItem, adjustQuantity, restock, fetchRestocks } = useInventory(activeGroup?.id);
+  const { items: invItems, loading: invLoading, addItem, updateItem, deleteItem, adjustQuantity, restock, fetchRestocks } = useInventory(activeGroup?.id);
 
   const now = new Date();
   const [budgetTab, setBudgetTab] = useState("movimientos");
@@ -225,6 +225,17 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [iNotes, setINotes] = useState("");
   const [addItemSaving, setAddItemSaving] = useState(false);
   const [addItemError, setAddItemError] = useState(null);
+
+  const [showEditItem, setShowEditItem] = useState(null);
+  const [eName, setEName] = useState("");
+  const [eUnit, setEUnit] = useState("tabletas");
+  const [eUnitsPerPack, setEUnitsPerPack] = useState("");
+  const [eConsumo, setEConsumo] = useState("");
+  const [eAlerta, setEAlerta] = useState("14");
+  const [eNotes, setENotes] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState(null);
+  const [unitSheetTarget, setUnitSheetTarget] = useState("add");
 
   const [rQuantity, setRQuantity] = useState("");
   const [rBoxes, setRBoxes] = useState("");
@@ -314,7 +325,37 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   function openAddItem() {
     setIName(""); setIUnit("tabletas"); setIUnitsPerPack(""); setIConsumo(""); setICantidad("");
     setIAlerta("14"); setINotes(""); setAddItemError(null);
+    setUnitSheetTarget("add");
     setShowAddItem(true);
+  }
+
+  function openEditItem(item) {
+    setEName(item.name);
+    setEUnit(item.unit);
+    setEUnitsPerPack(item.units_per_pack ? String(item.units_per_pack) : "");
+    setEConsumo(String(item.consumption_per_day));
+    setEAlerta(String(item.alert_threshold_days));
+    setENotes(item.notes || "");
+    setEditError(null);
+    setUnitSheetTarget("edit");
+    setShowEditItem(item);
+  }
+
+  async function handleEditItem() {
+    if (!eName.trim()) { setEditError("Ingresa un nombre"); return; }
+    const consumo = parseFloat(eConsumo);
+    if (!eConsumo || isNaN(consumo) || consumo <= 0) { setEditError("Ingresa un consumo diario válido"); return; }
+    const unitsPerPack = eUnitsPerPack ? parseInt(eUnitsPerPack) : null;
+    if (eUnitsPerPack && (isNaN(unitsPerPack) || unitsPerPack < 2)) { setEditError("La presentación debe tener al menos 2 unidades"); return; }
+    setEditSaving(true); setEditError(null);
+    try {
+      await updateItem(showEditItem.id, { name: eName, unit: eUnit, consumptionPerDay: consumo, alertThresholdDays: parseInt(eAlerta) || 14, notes: eNotes, unitsPerPack });
+      setShowEditItem(null);
+    } catch (e) {
+      setEditError(e.message || "Error al guardar");
+    } finally {
+      setEditSaving(false);
+    }
   }
 
   async function handleAddItem() {
@@ -732,6 +773,36 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
         </Sheet>
       )}
 
+      {showEditItem && (
+        <Sheet onClose={() => setShowEditItem(null)} title="Editar artículo">
+          <Field label="Nombre del artículo">
+            <input type="text" placeholder="ej. Metformina 500mg" value={eName} onChange={(e) => setEName(e.target.value)} style={inputSt} />
+          </Field>
+          <Field label="Unidad de medida">
+            <button onClick={() => { setUnitSheetTarget("edit"); setShowUnitSheet(true); }} style={{ ...inputSt, textAlign: "left", cursor: "pointer", color: "#111827", display: "flex", alignItems: "center", justifyContent: "space-between", border: `1px solid ${bd}` }}>
+              <span>{eUnit}</span>
+              <span style={{ color: mu, fontSize: 13 }}>›</span>
+            </button>
+          </Field>
+          <Field label={`${eUnit.charAt(0).toUpperCase() + eUnit.slice(1)} por presentación (opcional)`}>
+            <input type="number" inputMode="numeric" placeholder={`ej. 7 si se vende en cajas de 7 ${eUnit}`} value={eUnitsPerPack} onChange={(e) => setEUnitsPerPack(e.target.value)} min="2" step="1" style={inputSt} />
+          </Field>
+          <Field label={`Consumo diario (${eUnit}/día)`}>
+            <input type="number" inputMode="decimal" placeholder="ej. 2" value={eConsumo} onChange={(e) => setEConsumo(e.target.value)} min="0.01" step="0.5" style={inputSt} />
+          </Field>
+          <Field label="Alertar cuando queden (días)">
+            <input type="number" inputMode="numeric" value={eAlerta} onChange={(e) => setEAlerta(e.target.value)} min="1" max="90" step="1" style={inputSt} />
+          </Field>
+          <Field label="Notas (opcional)">
+            <input type="text" placeholder="..." value={eNotes} onChange={(e) => setENotes(e.target.value)} style={inputSt} />
+          </Field>
+          {editError && <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>{editError}</div>}
+          <button onClick={handleEditItem} disabled={editSaving} style={{ width: "100%", padding: "14px 0", background: "#111827", color: wh, border: "none", borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: editSaving ? "not-allowed" : "pointer", opacity: editSaving ? 0.7 : 1 }}>
+            {editSaving ? "Guardando..." : "Guardar cambios"}
+          </button>
+        </Sheet>
+      )}
+
       {showRestock && (
         <Sheet onClose={() => setShowRestock(null)} title={`Reabastecer · ${showRestock.name}`}>
           {showRestock.units_per_pack ? (
@@ -798,21 +869,27 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
           </div>
 
           {canEdit && (
-            <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-              <button onClick={() => { setShowDetail(null); openRestock(showDetail); }}
-                style={{ flex: 1, padding: "10px 0", background: G, color: wh, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-                Reabastecer
-              </button>
-              <button onClick={() => { setShowDetail(null); openAdjust(showDetail); }}
-                style={{ flex: 1, padding: "10px 0", background: wh, color: "#111827", border: `1.5px solid ${bd}`, borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-                Ajustar
-              </button>
-              {canDelete && (
-                <button onClick={() => { setShowDetail(null); handleDeleteItem(showDetail); }}
-                  style={{ padding: "10px 14px", background: wh, color: rd, border: `1.5px solid #FECACA`, borderRadius: 8, fontSize: 14, cursor: "pointer" }}>
-                  🗑
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => { setShowDetail(null); openRestock(showDetail); }}
+                  style={{ flex: 1, padding: "10px 0", background: G, color: wh, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                  Reabastecer
                 </button>
-              )}
+                <button onClick={() => { setShowDetail(null); openAdjust(showDetail); }}
+                  style={{ flex: 1, padding: "10px 0", background: wh, color: "#111827", border: `1.5px solid ${bd}`, borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                  Ajustar
+                </button>
+                {canDelete && (
+                  <button onClick={() => { setShowDetail(null); handleDeleteItem(showDetail); }}
+                    style={{ padding: "10px 14px", background: wh, color: rd, border: `1.5px solid #FECACA`, borderRadius: 8, fontSize: 14, cursor: "pointer" }}>
+                    🗑
+                  </button>
+                )}
+              </div>
+              <button onClick={() => { setShowDetail(null); openEditItem(showDetail); }}
+                style={{ width: "100%", padding: "10px 0", background: "none", border: `1.5px solid ${bd}`, borderRadius: 8, fontSize: 14, color: "#111827", cursor: "pointer" }}>
+                ✏️ Editar artículo
+              </button>
             </div>
           )}
 
@@ -876,13 +953,16 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
             <div style={{ padding: "20px 20px 12px", fontSize: 15, fontWeight: 700, color: "#111827", borderBottom: `1px solid ${bd}` }}>
               Unidad de medida
             </div>
-            {UNITS.map((u) => (
-              <button key={u} onClick={() => { setIUnit(u); setShowUnitSheet(false); }}
-                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "15px 20px", border: "none", borderBottom: `1px solid ${bd}`, background: iUnit === u ? `${G}0D` : "none", color: iUnit === u ? G : "#111827", fontSize: 15, fontWeight: iUnit === u ? 600 : 400, cursor: "pointer", textAlign: "left", boxSizing: "border-box" }}>
-                {u}
-                {iUnit === u && <span style={{ color: G, fontSize: 16 }}>✓</span>}
-              </button>
-            ))}
+            {UNITS.map((u) => {
+              const activeUnit = unitSheetTarget === "edit" ? eUnit : iUnit;
+              return (
+                <button key={u} onClick={() => { unitSheetTarget === "edit" ? setEUnit(u) : setIUnit(u); setShowUnitSheet(false); }}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "15px 20px", border: "none", borderBottom: `1px solid ${bd}`, background: activeUnit === u ? `${G}0D` : "none", color: activeUnit === u ? G : "#111827", fontSize: 15, fontWeight: activeUnit === u ? 600 : 400, cursor: "pointer", textAlign: "left", boxSizing: "border-box" }}>
+                  {u}
+                  {activeUnit === u && <span style={{ color: G, fontSize: 16 }}>✓</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
