@@ -74,7 +74,7 @@ function SummaryCard({ label, value, color, bold }) {
   );
 }
 
-function EntryCard({ entry, canEdit, onDelete, onViewReceipt }) {
+function EntryCard({ entry, canEdit, canDelete, onDelete, onViewReceipt }) {
   const isIncome = entry.type === "income";
   const color = isIncome ? G : rd;
   const sign = isIncome ? "+" : "−";
@@ -102,7 +102,7 @@ function EntryCard({ entry, canEdit, onDelete, onViewReceipt }) {
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
         <div style={{ fontWeight: 700, fontSize: 15, color }}>{sign}{fmtCurrency(parseFloat(entry.amount))}</div>
-        {canEdit && (
+        {canDelete && (
           <button onClick={onDelete} style={{ background: "none", border: "none", color: "#D1D5DB", fontSize: 17, cursor: "pointer", padding: 0, lineHeight: 1 }}>
             🗑
           </button>
@@ -237,6 +237,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [adjError, setAdjError] = useState(null);
 
   const canEdit = myRole === "admin" || myRole === "caregiver";
+  const canDelete = myRole === "admin";
 
   // ── Movimientos calcs ─────────────────────────────────────
   const monthEntries = useMemo(
@@ -503,7 +504,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {monthEntries.map((entry) => (
-                <EntryCard key={entry.id} entry={entry} canEdit={canEdit} onDelete={() => handleDelete(entry.id)} onViewReceipt={() => setViewReceipt(entry.receipt_url)} />
+                <EntryCard key={entry.id} entry={entry} canEdit={canEdit} canDelete={canDelete} onDelete={() => handleDelete(entry.id)} onViewReceipt={() => setViewReceipt(entry.receipt_url)} />
               ))}
             </div>
           )}
@@ -770,10 +771,12 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
                 style={{ flex: 1, padding: "10px 0", background: wh, color: "#111827", border: `1.5px solid ${bd}`, borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
                 Ajustar
               </button>
-              <button onClick={() => { setShowDetail(null); handleDeleteItem(showDetail); }}
-                style={{ padding: "10px 14px", background: wh, color: rd, border: `1.5px solid #FECACA`, borderRadius: 8, fontSize: 14, cursor: "pointer" }}>
-                🗑
-              </button>
+              {canDelete && (
+                <button onClick={() => { setShowDetail(null); handleDeleteItem(showDetail); }}
+                  style={{ padding: "10px 14px", background: wh, color: rd, border: `1.5px solid #FECACA`, borderRadius: 8, fontSize: 14, cursor: "pointer" }}>
+                  🗑
+                </button>
+              )}
             </div>
           )}
 

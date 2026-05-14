@@ -211,7 +211,7 @@ export default function MainApp({
   // solo puede observar (no registrar)
   const isViewer =
     !!viewingPatient && !["admin", "caregiver"].includes(myRoleInGroup);
-  const canDelete = myRoleInGroup === "admin" || !viewingPatient;
+  const canDelete = myRoleInGroup === "admin" || !myRoleInGroup;
   const [showPersonSelector, setShowPersonSelector] = useState(false);
   const [tab, setTab] = useState("inicio");
 
