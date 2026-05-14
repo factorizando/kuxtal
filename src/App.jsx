@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { supabase } from "./lib/supabase";
 import AuthScreen from "./components/AuthScreen";
@@ -60,25 +60,63 @@ export default function App() {
   const [myRoleInGroup, setMyRoleInGroup] = useState(null);
   const [patients, setPatients] = useState([]);
 
+  const lastBackRef = useRef(0);
+  const [exitToast, setExitToast] = useState(false);
+  const exitToastTimerRef = useRef(null);
+
+  function showExitToast() {
+    setExitToast(true);
+    clearTimeout(exitToastTimerRef.current);
+    exitToastTimerRef.current = setTimeout(() => setExitToast(false), 2000);
+  }
+
   const SCREENS = ["app", "family", "budget"];
   function handleSwipeScreen(direction) {
     setScreen((cur) => {
       const i = SCREENS.indexOf(cur);
       if (direction === "left" && i < SCREENS.length - 1) return SCREENS[i + 1];
       if (direction === "right" && i > 0) return SCREENS[i - 1];
+      if (direction === "right" && i === 0) {
+        const now = Date.now();
+        if (now - lastBackRef.current < 2000) {
+          // second swipe within window — allow system exit
+          return cur;
+        }
+        lastBackRef.current = now;
+        showExitToast();
+      }
       return cur;
     });
   }
 
-  // History API: intercepta el gesto nativo "volver" del sistema cuando el Perfil está abierto
+  // History API: push initial guard so first back doesn't exit immediately
+  useEffect(() => {
+    history.pushState({ kuxtal: "main" }, "");
+  }, []);
+
+  // Push profile guard when entering profile screen
   useEffect(() => {
     if (screen === "profile") {
       history.pushState({ kuxtal: "profile" }, "");
     }
   }, [screen]);
+
   useEffect(() => {
     function onPop() {
-      setScreen((cur) => (cur === "profile" ? "app" : cur));
+      setScreen((cur) => {
+        if (cur === "profile") return "app";
+        // Main screens: double-back-to-exit
+        const now = Date.now();
+        if (now - lastBackRef.current < 2000) {
+          // Second back within 2s — don't push guard, allow exit
+          return cur;
+        }
+        lastBackRef.current = now;
+        showExitToast();
+        // Push guard again so the next back can be caught
+        history.pushState({ kuxtal: "main" }, "");
+        return cur;
+      });
     }
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -186,6 +224,29 @@ export default function App() {
         )}
         {screen === "budget" && <BudgetScreen userId={user.id} onSwipeScreen={handleSwipeScreen} />}
       </div>
+
+      {/* Toast doble-gesto para salir */}
+      {exitToast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 82,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(17,24,39,0.88)",
+            color: "#FFFFFF",
+            fontSize: 13,
+            fontWeight: 500,
+            padding: "9px 20px",
+            borderRadius: 24,
+            zIndex: 50,
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Toca de nuevo para salir
+        </div>
+      )}
 
       {/* Navegación inferior */}
       <div
