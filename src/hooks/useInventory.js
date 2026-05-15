@@ -1,6 +1,23 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 
+async function compressImage(file, maxWidth = 1200) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const ratio = Math.min(maxWidth / img.width, 1);
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width * ratio;
+      canvas.height = img.height * ratio;
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.82);
+    };
+    img.src = url;
+  });
+}
+
 // Calcula días de stock restantes descontando el consumo desde la última actualización
 export function calcDaysRemaining(item) {
   const elapsedDays =
@@ -115,7 +132,7 @@ export function useInventory(groupId) {
     await fetchItems();
   }
 
-  async function restock({ itemId, quantity, price, brand, store, purchasedAt, notes, recordedBy, createBudgetEntry, itemName }) {
+  async function restock({ itemId, quantity, price, brand, store, purchasedAt, notes, recordedBy, createBudgetEntry, itemName, file }) {
     const item = items.find((i) => i.id === itemId);
     if (!item) throw new Error("Artículo no encontrado");
 
@@ -151,7 +168,7 @@ export function useInventory(groupId) {
     }
 
     // Registrar el reabastecimiento
-    const { error: restockErr } = await supabase.from("inventory_restocks").insert({
+    const { data: restockData, error: restockErr } = await supabase.from("inventory_restocks").insert({
       item_id: itemId,
       group_id: groupId,
       recorded_by: recordedBy,
@@ -162,8 +179,25 @@ export function useInventory(groupId) {
       purchased_at: purchasedAt,
       budget_entry_id: budgetEntryId,
       notes: notes?.trim() || null,
-    });
+    }).select().single();
     if (restockErr) throw restockErr;
+
+    // Subir comprobante fotográfico si se proporcionó
+    if (file && restockData?.id) {
+      try {
+        const compressed = await compressImage(file);
+        const path = `restocks/${groupId}/${restockData.id}.jpg`;
+        const { error: uploadErr } = await supabase.storage
+          .from("receipts")
+          .upload(path, compressed, { upsert: true, contentType: "image/jpeg" });
+        if (!uploadErr) {
+          const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(path);
+          await supabase.from("inventory_restocks").update({ receipt_url: urlData.publicUrl }).eq("id", restockData.id);
+        }
+      } catch (e) {
+        console.error("restock receipt upload error:", e);
+      }
+    }
 
     // Actualizar cantidad del artículo
     const { error: updateErr } = await supabase

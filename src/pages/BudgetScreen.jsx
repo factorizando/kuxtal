@@ -245,6 +245,8 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [rDate, setRDate] = useState(todayStr());
   const [rNotes, setRNotes] = useState("");
   const [rCreateBudget, setRCreateBudget] = useState(true);
+  const [rFile, setRFile] = useState(null);
+  const [rFilePreview, setRFilePreview] = useState(null);
   const [rSaving, setRSaving] = useState(false);
   const [restockError, setRestockError] = useState(null);
 
@@ -380,7 +382,15 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   function openRestock(item) {
     setRQuantity(""); setRBoxes(""); setRBrand(""); setRStore(""); setRPrice("");
     setRDate(todayStr()); setRNotes(""); setRCreateBudget(true); setRestockError(null);
+    setRFile(null); setRFilePreview(null);
     setShowRestock(item);
+  }
+
+  function handleRestockFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setRFile(file);
+    setRFilePreview(URL.createObjectURL(file));
   }
 
   async function handleRestock() {
@@ -407,6 +417,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
         recordedBy: userId,
         createBudgetEntry: rCreateBudget,
         itemName: showRestock.name,
+        file: rFile || null,
       });
       setShowRestock(null);
     } catch (e) {
@@ -837,6 +848,24 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
           <Field label="Notas (opcional)">
             <input type="text" placeholder="..." value={rNotes} onChange={(e) => setRNotes(e.target.value)} style={inputSt} />
           </Field>
+          <Field label="Comprobante (opcional)">
+            <label style={{ display: "block", cursor: "pointer" }}>
+              {rFilePreview ? (
+                <img src={rFilePreview} alt="comprobante" style={{ maxHeight: 130, maxWidth: "100%", borderRadius: 6, objectFit: "contain" }} />
+              ) : (
+                <div style={{ ...inputSt, display: "flex", alignItems: "center", gap: 8, color: "#9CA3AF" }}>
+                  <span>📷</span>
+                  <span>Tomar foto o seleccionar imagen</span>
+                </div>
+              )}
+              <input type="file" accept="image/*" capture="environment" onChange={handleRestockFileChange} style={{ display: "none" }} />
+            </label>
+            {rFilePreview && (
+              <button onClick={() => { setRFile(null); setRFilePreview(null); }} style={{ background: "none", border: "none", color: rd, fontSize: 12, cursor: "pointer", marginTop: 6, padding: 0 }}>
+                Quitar foto
+              </button>
+            )}
+          </Field>
           {parseFloat(rPrice) > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, padding: "12px 14px", background: "#F9FAFB", borderRadius: 10, cursor: "pointer" }}
               onClick={() => setRCreateBudget((v) => !v)}>
@@ -916,6 +945,11 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
                         <div style={{ fontSize: 12, color: mu, marginTop: 2 }}>
                           {r.quantity} {showDetail.unit} · {r.purchased_at}
                         </div>
+                        {r.receipt_url && (
+                          <button onClick={() => setViewReceipt(r.receipt_url)} style={{ background: "none", border: "none", color: "#3B82F6", fontSize: 12, cursor: "pointer", padding: 0, marginTop: 4 }}>
+                            🧾 Ver comprobante
+                          </button>
+                        )}
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
                         {r.price ? (
