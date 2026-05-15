@@ -296,32 +296,6 @@ export default function App() {
           </button>
         ))}
 
-        {/* Avatar como botón de perfil */}
-        <button
-          onClick={() => setScreen("profile")}
-          style={{
-            flex: 1,
-            padding: "10px 0",
-            border: "none",
-            background: "transparent",
-            cursor: "pointer",
-            borderTop: `2.5px solid ${screen === "profile" ? G : "transparent"}`,
-            color: screen === "profile" ? G : mu,
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: 24 }}>
-            <Avatar profile={profile} user={user} size={24} />
-          </div>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: screen === "profile" ? 600 : 400,
-              marginTop: 2,
-            }}
-          >
-            Perfil
-          </div>
-        </button>
       </div>
     </div>
   );
