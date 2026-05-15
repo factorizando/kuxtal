@@ -53,6 +53,22 @@ export function useInventory(groupId) {
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
+  useEffect(() => {
+    if (!groupId) return;
+    const channel = supabase
+      .channel(`inventory:${groupId}`)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "inventory_items",
+        filter: `group_id=eq.${groupId}`,
+      }, () => fetchItems())
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "inventory_restocks",
+        filter: `group_id=eq.${groupId}`,
+      }, () => fetchItems())
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [groupId, fetchItems]);
+
   async function addItem({ name, unit, consumptionPerDay, currentQuantity, alertThresholdDays, notes, createdBy, unitsPerPack, file }) {
     const { data, error } = await supabase.from("inventory_items").insert({
       group_id: groupId,

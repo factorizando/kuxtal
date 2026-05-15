@@ -49,6 +49,18 @@ export function useBudget(groupId) {
     fetchEntries();
   }, [fetchEntries]);
 
+  useEffect(() => {
+    if (!groupId) return;
+    const channel = supabase
+      .channel(`budget_entries:${groupId}`)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "budget_entries",
+        filter: `group_id=eq.${groupId}`,
+      }, () => fetchEntries())
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [groupId, fetchEntries]);
+
   async function addEntry({
     type,
     amount,
