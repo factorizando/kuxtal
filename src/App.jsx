@@ -124,6 +124,9 @@ export default function App() {
 
   // Auto-detectar pacientes del grupo y preseleccionar el primero
   useEffect(() => {
+    setPatients([]);
+    setMyRoleInGroup(null);
+    setViewingPatient(null);
     if (!user) return;
     (async () => {
       const { data: myGroups } = await supabase
