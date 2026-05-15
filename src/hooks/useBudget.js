@@ -103,6 +103,24 @@ export function useBudget(groupId) {
     await fetchEntries();
   }
 
+  async function updateEntry(id, { type, amount, category, contributorId, note, entryDate }) {
+    const isProfileContributor = contributorId && contributorId.includes("-");
+    const { error } = await supabase
+      .from("budget_entries")
+      .update({
+        contributor_id: type === "income" && isProfileContributor ? contributorId : null,
+        contributor_label: type === "income" && !isProfileContributor && contributorId ? contributorId : null,
+        type,
+        amount: parseFloat(amount),
+        category,
+        note: note?.trim() || null,
+        entry_date: entryDate,
+      })
+      .eq("id", id);
+    if (error) throw error;
+    await fetchEntries();
+  }
+
   async function deleteEntry(id) {
     const entry = entries.find((e) => e.id === id);
     const { error } = await supabase
@@ -123,5 +141,5 @@ export function useBudget(groupId) {
     setEntries((prev) => prev.filter((e) => e.id !== id));
   }
 
-  return { entries, loading, addEntry, deleteEntry, refetch: fetchEntries };
+  return { entries, loading, addEntry, updateEntry, deleteEntry, refetch: fetchEntries };
 }

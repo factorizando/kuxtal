@@ -74,7 +74,7 @@ function SummaryCard({ label, value, color, bold }) {
   );
 }
 
-function EntryCard({ entry, canDelete, onDelete, onViewReceipt }) {
+function EntryCard({ entry, canDelete, onDelete, onEdit, onViewReceipt }) {
   const isIncome = entry.type === "income";
   const color = isIncome ? G : rd;
   const sign = isIncome ? "+" : "−";
@@ -103,11 +103,45 @@ function EntryCard({ entry, canDelete, onDelete, onViewReceipt }) {
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
         <div style={{ fontWeight: 700, fontSize: 15, color }}>{sign}{fmtCurrency(parseFloat(entry.amount))}</div>
         {canDelete && (
-          <button onClick={onDelete} style={{ background: "none", border: "none", color: "#D1D5DB", fontSize: 17, cursor: "pointer", padding: 0, lineHeight: 1 }}>
-            🗑
-          </button>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={onEdit} style={{ background: "none", border: "none", color: "#9CA3AF", fontSize: 16, cursor: "pointer", padding: 0, lineHeight: 1 }}>
+              ✏️
+            </button>
+            <button onClick={onDelete} style={{ background: "none", border: "none", color: "#D1D5DB", fontSize: 17, cursor: "pointer", padding: 0, lineHeight: 1 }}>
+              🗑
+            </button>
+          </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function PhotoPicker({ id, preview, onFile, onClear }) {
+  function pick(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    onFile(file, URL.createObjectURL(file));
+    e.target.value = "";
+  }
+  const btnSt = { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", border: `1.5px dashed ${bd}`, borderRadius: 8, cursor: "pointer", color: mu, fontSize: 13, background: "#FAFAFA" };
+  return preview ? (
+    <div>
+      <img src={preview} alt="" style={{ maxHeight: 130, maxWidth: "100%", borderRadius: 6, objectFit: "contain", display: "block" }} />
+      <button onClick={onClear} style={{ background: "none", border: "none", color: rd, fontSize: 12, cursor: "pointer", marginTop: 4, padding: 0 }}>
+        Quitar foto
+      </button>
+    </div>
+  ) : (
+    <div style={{ display: "flex", gap: 8 }}>
+      <label htmlFor={`${id}-cam`} style={btnSt}>
+        📷 Cámara
+        <input id={`${id}-cam`} type="file" accept="image/*" capture="environment" onChange={pick} style={{ display: "none" }} />
+      </label>
+      <label htmlFor={`${id}-gal`} style={btnSt}>
+        🖼 Galería
+        <input id={`${id}-gal`} type="file" accept="image/*" onChange={pick} style={{ display: "none" }} />
+      </label>
     </div>
   );
 }
@@ -122,38 +156,45 @@ function InventoryItemCard({ item, canEdit, onRestock, onDetail, onAdjust }) {
 
   return (
     <div style={{ background: wh, borderRadius: 12, padding: "14px 16px", boxShadow: "0 1px 4px rgba(0,0,0,.06)", borderLeft: `4px solid ${statusColor}` }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>{item.name}</div>
-          <div style={{ fontSize: 12, color: mu, marginTop: 2 }}>
-            {item.consumption_per_day} {item.unit}/día
-            {item.units_per_pack && <span> · 📦 cajas de {item.units_per_pack}</span>}
-          </div>
-        </div>
-        {canEdit && (
-          <button onClick={onRestock} style={{ padding: "6px 12px", background: G, color: wh, border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
-            Reabastecer
-          </button>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+        {item.image_url && (
+          <img src={item.image_url} alt={item.name} style={{ width: 52, height: 52, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
         )}
-      </div>
-      <div style={{ margin: "10px 0 6px" }}>
-        <div style={{ height: 6, borderRadius: 3, background: "#F3F4F6", overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${fillPct}%`, background: statusColor, borderRadius: 3 }} />
-        </div>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 13, color: statusColor, fontWeight: 600 }}>
-          {isUrgent && days >= 1 ? "⚠️ " : ""}{daysLabel}
-        </span>
-        <div style={{ display: "flex", gap: 12 }}>
-          {canEdit && (
-            <button onClick={onAdjust} style={{ background: "none", border: "none", color: mu, fontSize: 12, cursor: "pointer", padding: 0 }}>
-              Ajustar
-            </button>
-          )}
-          <button onClick={onDetail} style={{ background: "none", border: "none", color: mu, fontSize: 12, cursor: "pointer", padding: 0 }}>
-            Historial ›
-          </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>{item.name}</div>
+              <div style={{ fontSize: 12, color: mu, marginTop: 2 }}>
+                {item.consumption_per_day} {item.unit}/día
+                {item.units_per_pack && <span> · 📦 cajas de {item.units_per_pack}</span>}
+              </div>
+            </div>
+            {canEdit && (
+              <button onClick={onRestock} style={{ padding: "6px 12px", background: G, color: wh, border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+                Reabastecer
+              </button>
+            )}
+          </div>
+          <div style={{ margin: "10px 0 6px" }}>
+            <div style={{ height: 6, borderRadius: 3, background: "#F3F4F6", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${fillPct}%`, background: statusColor, borderRadius: 3 }} />
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 13, color: statusColor, fontWeight: 600 }}>
+              {isUrgent && days >= 1 ? "⚠️ " : ""}{daysLabel}
+            </span>
+            <div style={{ display: "flex", gap: 12 }}>
+              {canEdit && (
+                <button onClick={onAdjust} style={{ background: "none", border: "none", color: mu, fontSize: 12, cursor: "pointer", padding: 0 }}>
+                  Ajustar
+                </button>
+              )}
+              <button onClick={onDetail} style={{ background: "none", border: "none", color: mu, fontSize: 12, cursor: "pointer", padding: 0 }}>
+                Historial ›
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -183,8 +224,8 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     onSwipeRight: () => onSwipeScreen?.("right"),
   });
   const { groups, activeGroup, members, myRole, loading: groupLoading, selectGroup } = useFamily(userId);
-  const { entries, loading: budgetLoading, addEntry, deleteEntry } = useBudget(activeGroup?.id);
-  const { items: invItems, loading: invLoading, addItem, updateItem, deleteItem, adjustQuantity, restock, fetchRestocks } = useInventory(activeGroup?.id);
+  const { entries, loading: budgetLoading, addEntry, updateEntry, deleteEntry } = useBudget(activeGroup?.id);
+  const { items: invItems, loading: invLoading, addItem, updateItem, deleteItem, adjustQuantity, restock, fetchRestocks, getRestockForEntry, deleteRestockAndRevertStock, updateRestockAndAdjustStock } = useInventory(activeGroup?.id);
 
   const now = new Date();
   const [budgetTab, setBudgetTab] = useState("movimientos");
@@ -206,6 +247,22 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [showCategorySheet, setShowCategorySheet] = useState(false);
   const [showContributorSheet, setShowContributorSheet] = useState(false);
 
+  // ── Edit entry state ──────────────────────────────────────
+  const [showEditEntry, setShowEditEntry] = useState(null);
+  const [eType, setEType] = useState("expense");
+  const [eAmount, setEAmount] = useState("");
+  const [eCategory, setECategory] = useState("");
+  const [eContributor, setEContributor] = useState("");
+  const [eNote, setENote] = useState("");
+  const [eEntryDate, setEEntryDate] = useState(todayStr());
+  const [eEditSaving, setEEditSaving] = useState(false);
+  const [eEditError, setEEditError] = useState(null);
+  const [eIsRestockLinked, setEIsRestockLinked] = useState(false);
+  const [eRestockData, setERestockData] = useState(null);
+  const [eQuantity, setEQuantity] = useState("");
+  const [showEditCategorySheet, setShowEditCategorySheet] = useState(false);
+  const [showEditContributorSheet, setShowEditContributorSheet] = useState(false);
+
   // ── Inventario state ──────────────────────────────────────
   const [showAddItem, setShowAddItem] = useState(false);
   const [showRestock, setShowRestock] = useState(null);
@@ -215,6 +272,11 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [showStoreSheet, setShowStoreSheet] = useState(false);
   const [restockHistory, setRestockHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  const [iImgFile, setIImgFile] = useState(null);
+  const [iImgPreview, setIImgPreview] = useState(null);
+  const [eImgFile, setEImgFile] = useState(null);
+  const [eImgPreview, setEImgPreview] = useState(null);
 
   const [iName, setIName] = useState("");
   const [iUnit, setIUnit] = useState("tabletas");
@@ -295,12 +357,6 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     setShowForm(true);
   }
 
-  function handleFileChange(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setFFile(file);
-    setFPreview(URL.createObjectURL(file));
-  }
 
   async function handleSubmit() {
     const parsed = parseFloat(fAmount);
@@ -319,14 +375,89 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   }
 
   async function handleDelete(id) {
-    if (!window.confirm("¿Eliminar este movimiento?")) return;
-    try { await deleteEntry(id); } catch (e) { alert(e.message); }
+    try {
+      const restock = await getRestockForEntry(id);
+      if (restock) {
+        const item = invItems.find((i) => i.id === restock.item_id);
+        const itemName = item ? item.name : "el artículo";
+        const unit = item ? item.unit : "unidades";
+        if (!window.confirm(
+          `Este movimiento está vinculado a un reabastecimiento de inventario.\n\nSe eliminará el movimiento, se borrará del historial de compras y se descontarán ${restock.quantity} ${unit} de ${itemName}.\n\n¿Continuar?`
+        )) return;
+        await deleteRestockAndRevertStock(restock.id, restock.item_id, restock.quantity);
+      } else {
+        if (!window.confirm("¿Eliminar este movimiento?")) return;
+      }
+      await deleteEntry(id);
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  async function openEditEntry(entry) {
+    try {
+      const restock = await getRestockForEntry(entry.id);
+      setEIsRestockLinked(!!restock);
+      setERestockData(restock);
+      setEQuantity(restock ? String(restock.quantity) : "");
+    } catch {
+      setEIsRestockLinked(false);
+      setERestockData(null);
+      setEQuantity("");
+    }
+    setEType(entry.type);
+    setEAmount(String(entry.amount));
+    setECategory(entry.category);
+    setENote(entry.note || "");
+    setEEntryDate(entry.entry_date);
+    const contributorVal = entry.contributor?.id || entry.contributor_label || "";
+    setEContributor(contributorVal);
+    setEEditError(null);
+    setShowEditEntry(entry);
+  }
+
+  async function handleEditEntry() {
+    const parsed = parseFloat(eAmount);
+    if (!eAmount || isNaN(parsed) || parsed <= 0) { setEEditError("Ingresa un monto válido"); return; }
+    if (!eCategory) { setEEditError("Selecciona una categoría"); return; }
+    if (!eEntryDate) { setEEditError("Selecciona una fecha"); return; }
+    if (eIsRestockLinked && eRestockData) {
+      const newQty = parseFloat(eQuantity);
+      if (!eQuantity || isNaN(newQty) || newQty <= 0) { setEEditError("Ingresa una cantidad válida"); return; }
+    }
+    setEEditSaving(true); setEEditError(null);
+    try {
+      if (eIsRestockLinked && eRestockData) {
+        await updateRestockAndAdjustStock(
+          eRestockData.id,
+          eRestockData.item_id,
+          eRestockData.quantity,
+          parseFloat(eQuantity),
+          parsed,
+          eEntryDate,
+        );
+      }
+      await updateEntry(showEditEntry.id, {
+        type: eType,
+        amount: eAmount,
+        category: eCategory,
+        contributorId: eType === "income" ? eContributor || null : null,
+        note: eNote,
+        entryDate: eEntryDate,
+      });
+      setShowEditEntry(null);
+    } catch (e) {
+      setEEditError(e.message || "Error al guardar");
+    } finally {
+      setEEditSaving(false);
+    }
   }
 
   // ── Inventario handlers ───────────────────────────────────
   function openAddItem() {
     setIName(""); setIUnit("tabletas"); setIUnitsPerPack(""); setIConsumo(""); setICantidad("");
     setIAlerta("14"); setINotes(""); setAddItemError(null);
+    setIImgFile(null); setIImgPreview(null);
     setUnitSheetTarget("add");
     setShowAddItem(true);
   }
@@ -339,6 +470,8 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     setEAlerta(String(item.alert_threshold_days));
     setENotes(item.notes || "");
     setEditError(null);
+    setEImgFile(null);
+    setEImgPreview(null);
     setUnitSheetTarget("edit");
     setShowEditItem(item);
   }
@@ -351,7 +484,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     if (eUnitsPerPack && (isNaN(unitsPerPack) || unitsPerPack < 2)) { setEditError("La presentación debe tener al menos 2 unidades"); return; }
     setEditSaving(true); setEditError(null);
     try {
-      await updateItem(showEditItem.id, { name: eName, unit: eUnit, consumptionPerDay: consumo, alertThresholdDays: parseInt(eAlerta) || 14, notes: eNotes, unitsPerPack });
+      await updateItem(showEditItem.id, { name: eName, unit: eUnit, consumptionPerDay: consumo, alertThresholdDays: parseInt(eAlerta) || 14, notes: eNotes, unitsPerPack, file: eImgFile || null });
       setShowEditItem(null);
     } catch (e) {
       setEditError(e.message || "Error al guardar");
@@ -370,7 +503,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     if (iUnitsPerPack && (isNaN(unitsPerPack) || unitsPerPack < 2)) { setAddItemError("La presentación debe tener al menos 2 unidades"); return; }
     setAddItemSaving(true); setAddItemError(null);
     try {
-      await addItem({ name: iName, unit: iUnit, consumptionPerDay: consumo, currentQuantity: cantidad, alertThresholdDays: parseInt(iAlerta) || 14, notes: iNotes, createdBy: userId, unitsPerPack });
+      await addItem({ name: iName, unit: iUnit, consumptionPerDay: consumo, currentQuantity: cantidad, alertThresholdDays: parseInt(iAlerta) || 14, notes: iNotes, createdBy: userId, unitsPerPack, file: iImgFile || null });
       setShowAddItem(false);
     } catch (e) {
       setAddItemError(e.message || "Error al guardar");
@@ -386,12 +519,6 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     setShowRestock(item);
   }
 
-  function handleRestockFileChange(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setRFile(file);
-    setRFilePreview(URL.createObjectURL(file));
-  }
 
   async function handleRestock() {
     let qty;
@@ -570,7 +697,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {monthEntries.map((entry) => (
-                <EntryCard key={entry.id} entry={entry} canEdit={canEdit} canDelete={canDelete} onDelete={() => handleDelete(entry.id)} onViewReceipt={() => setViewReceipt(entry.receipt_url)} />
+                <EntryCard key={entry.id} entry={entry} canDelete={canDelete} onDelete={() => handleDelete(entry.id)} onEdit={() => openEditEntry(entry)} onViewReceipt={() => setViewReceipt(entry.receipt_url)} />
               ))}
             </div>
           )}
@@ -675,24 +802,131 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
               <input type="text" placeholder="Descripción adicional..." value={fNote} onChange={(e) => setFNote(e.target.value)} style={inputSt} />
             </Field>
             <Field label="Comprobante (opcional)">
-              <label style={{ display: "block", border: `2px dashed ${bd}`, borderRadius: 10, padding: 12, textAlign: "center", cursor: "pointer", color: mu, fontSize: 13, background: "#FAFAFA" }}>
-                {fPreview ? (
-                  <img src={fPreview} alt="comprobante" style={{ maxHeight: 130, maxWidth: "100%", borderRadius: 6, objectFit: "contain" }} />
-                ) : (
-                  <span>📷 Tomar foto o seleccionar imagen</span>
-                )}
-                <input type="file" accept="image/*" capture="environment" onChange={handleFileChange} style={{ display: "none" }} />
-              </label>
-              {fPreview && (
-                <button onClick={() => { setFFile(null); setFPreview(null); }} style={{ background: "none", border: "none", color: rd, fontSize: 12, cursor: "pointer", marginTop: 4 }}>
-                  Quitar foto
-                </button>
-              )}
+              <PhotoPicker
+                id="entry-receipt"
+                preview={fPreview}
+                onFile={(file, url) => { setFFile(file); setFPreview(url); }}
+                onClear={() => { setFFile(null); setFPreview(null); }}
+              />
             </Field>
             {formError && <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>{formError}</div>}
             <button onClick={handleSubmit} disabled={saving} style={{ width: "100%", padding: "14px 0", background: fType === "expense" ? rd : G, color: wh, border: "none", borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
               {saving ? "Guardando..." : "Guardar movimiento"}
             </button>
+          </div>
+        </div>
+      )}
+
+      {showEditEntry && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 50, display: "flex", alignItems: "flex-end" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowEditEntry(null); }}>
+          <div style={{ background: wh, borderRadius: "20px 20px 0 0", padding: 24, width: "100%", maxHeight: "92vh", overflowY: "auto", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <span style={{ fontSize: 17, fontWeight: 700, color: "#111827" }}>Editar movimiento</span>
+              <button onClick={() => setShowEditEntry(null)} style={{ background: "none", border: "none", fontSize: 24, color: mu, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+            {eIsRestockLinked && (
+              <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 8, padding: "10px 12px", marginBottom: 16, fontSize: 13, color: "#92400E" }}>
+                Este movimiento está vinculado a un reabastecimiento de inventario. Los cambios aquí solo afectan el presupuesto; el stock del artículo no se modificará.
+              </div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 18 }}>
+              {[["expense", "💸 Gasto", rd], ["income", "💰 Ingreso", G]].map(([t, lbl, col]) => (
+                <button key={t} onClick={() => { setEType(t); setECategory(""); }}
+                  style={{ padding: "11px 0", border: `2px solid ${eType === t ? col : bd}`, borderRadius: 10, background: eType === t ? `${col}18` : wh, color: eType === t ? col : mu, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+            <Field label="Monto (MXN)">
+              <input type="number" inputMode="decimal" placeholder="0.00" value={eAmount} onChange={(e) => setEAmount(e.target.value)} min="0" step="0.01" style={inputSt} />
+            </Field>
+            <Field label="Fecha">
+              <input type="date" value={eEntryDate} onChange={(e) => setEEntryDate(e.target.value)} style={inputSt} />
+            </Field>
+            <Field label="Categoría">
+              {eType === "income" ? (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {INCOME_CATEGORIES.map((c) => (
+                    <button key={c} onClick={() => setECategory(c)} style={{ padding: "8px 18px", border: `2px solid ${eCategory === c ? G : bd}`, borderRadius: 20, background: eCategory === c ? `${G}15` : wh, color: eCategory === c ? G : mu, fontWeight: eCategory === c ? 600 : 400, fontSize: 14, cursor: "pointer" }}>
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <button onClick={() => setShowEditCategorySheet(true)} style={{ ...inputSt, textAlign: "left", cursor: "pointer", color: eCategory ? "#111827" : "#9CA3AF", display: "flex", alignItems: "center", justifyContent: "space-between", border: `1px solid ${bd}` }}>
+                  <span>{eCategory || "Seleccionar categoría..."}</span>
+                  <span style={{ color: mu, fontSize: 13 }}>›</span>
+                </button>
+              )}
+            </Field>
+            {eType === "income" && (
+              <Field label="Aportado por">
+                <button onClick={() => setShowEditContributorSheet(true)} style={{ ...inputSt, textAlign: "left", cursor: "pointer", color: eContributor ? "#111827" : "#9CA3AF", display: "flex", alignItems: "center", justifyContent: "space-between", border: `1px solid ${bd}` }}>
+                  <span>{eContributor === "bienestar" ? "Bienestar" : members.find((m) => m.profiles.id === eContributor)?.profiles.full_name || "Seleccionar integrante..."}</span>
+                  <span style={{ color: mu, fontSize: 13 }}>›</span>
+                </button>
+              </Field>
+            )}
+            {eIsRestockLinked && eRestockData && (() => {
+              const item = invItems.find((i) => i.id === eRestockData.item_id);
+              const unit = item ? item.unit : "unidades";
+              return (
+                <Field label={`Cantidad (${unit})`}>
+                  <input type="number" inputMode="decimal" placeholder="ej. 30" value={eQuantity} onChange={(e) => setEQuantity(e.target.value)} min="0.001" step="1" style={inputSt} />
+                  {item?.units_per_pack && eQuantity && parseFloat(eQuantity) > 0 && (
+                    <div style={{ fontSize: 12, color: mu, marginTop: 6 }}>
+                      = {(parseFloat(eQuantity) / item.units_per_pack).toFixed(1)} cajas de {item.units_per_pack} {unit}
+                    </div>
+                  )}
+                </Field>
+              );
+            })()}
+            <Field label="Nota (opcional)">
+              <input type="text" placeholder="Descripción adicional..." value={eNote} onChange={(e) => setENote(e.target.value)} style={inputSt} />
+            </Field>
+            {eEditError && <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>{eEditError}</div>}
+            <button onClick={handleEditEntry} disabled={eEditSaving} style={{ width: "100%", padding: "14px 0", background: eType === "expense" ? rd : G, color: wh, border: "none", borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: eEditSaving ? "not-allowed" : "pointer", opacity: eEditSaving ? 0.7 : 1 }}>
+              {eEditSaving ? "Guardando..." : "Guardar cambios"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showEditCategorySheet && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", zIndex: 55, display: "flex", alignItems: "flex-end" }}
+          onClick={() => setShowEditCategorySheet(false)}>
+          <div style={{ background: wh, borderRadius: "20px 20px 0 0", width: "100%", paddingBottom: 32, boxSizing: "border-box" }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ padding: "20px 20px 12px", fontSize: 15, fontWeight: 700, color: "#111827", borderBottom: `1px solid ${bd}` }}>
+              Categoría de gasto
+            </div>
+            {EXPENSE_CATEGORIES.map((c) => (
+              <button key={c} onClick={() => { setECategory(c); setShowEditCategorySheet(false); }}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "15px 20px", border: "none", borderBottom: `1px solid ${bd}`, background: eCategory === c ? `${G}0D` : "none", color: eCategory === c ? G : "#111827", fontSize: 15, fontWeight: eCategory === c ? 600 : 400, cursor: "pointer", textAlign: "left", boxSizing: "border-box" }}>
+                {c}
+                {eCategory === c && <span style={{ color: G, fontSize: 16 }}>✓</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showEditContributorSheet && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", zIndex: 55, display: "flex", alignItems: "flex-end" }}
+          onClick={() => setShowEditContributorSheet(false)}>
+          <div style={{ background: wh, borderRadius: "20px 20px 0 0", width: "100%", paddingBottom: 32, boxSizing: "border-box" }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ padding: "20px 20px 12px", fontSize: 15, fontWeight: 700, color: "#111827", borderBottom: `1px solid ${bd}` }}>
+              Aportado por
+            </div>
+            {[{ id: "bienestar", name: "Bienestar" }, ...members.map((m) => ({ id: m.profiles.id, name: m.profiles.full_name || "Sin nombre" }))].map((opt) => (
+              <button key={opt.id} onClick={() => { setEContributor(opt.id); setShowEditContributorSheet(false); }}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "15px 20px", border: "none", borderBottom: `1px solid ${bd}`, background: eContributor === opt.id ? `${G}0D` : "none", color: eContributor === opt.id ? G : "#111827", fontSize: 15, fontWeight: eContributor === opt.id ? 600 : 400, cursor: "pointer", textAlign: "left", boxSizing: "border-box" }}>
+                {opt.name}
+                {eContributor === opt.id && <span style={{ color: G, fontSize: 16 }}>✓</span>}
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -777,6 +1011,14 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
           <Field label="Notas (opcional)">
             <input type="text" placeholder="..." value={iNotes} onChange={(e) => setINotes(e.target.value)} style={inputSt} />
           </Field>
+          <Field label="Foto del producto (opcional)">
+            <PhotoPicker
+              id="add-item-img"
+              preview={iImgPreview}
+              onFile={(file, url) => { setIImgFile(file); setIImgPreview(url); }}
+              onClear={() => { setIImgFile(null); setIImgPreview(null); }}
+            />
+          </Field>
           {addItemError && <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>{addItemError}</div>}
           <button onClick={handleAddItem} disabled={addItemSaving} style={{ width: "100%", padding: "14px 0", background: "#111827", color: wh, border: "none", borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: addItemSaving ? "not-allowed" : "pointer", opacity: addItemSaving ? 0.7 : 1 }}>
             {addItemSaving ? "Guardando..." : "Guardar artículo"}
@@ -806,6 +1048,20 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
           </Field>
           <Field label="Notas (opcional)">
             <input type="text" placeholder="..." value={eNotes} onChange={(e) => setENotes(e.target.value)} style={inputSt} />
+          </Field>
+          <Field label="Foto del producto">
+            {showEditItem?.image_url && !eImgPreview && (
+              <div style={{ marginBottom: 8 }}>
+                <img src={showEditItem.image_url} alt="" style={{ maxHeight: 100, maxWidth: "100%", borderRadius: 6, objectFit: "contain", display: "block" }} />
+                <div style={{ fontSize: 11, color: mu, marginTop: 4 }}>Foto actual — selecciona una nueva para reemplazarla</div>
+              </div>
+            )}
+            <PhotoPicker
+              id="edit-item-img"
+              preview={eImgPreview}
+              onFile={(file, url) => { setEImgFile(file); setEImgPreview(url); }}
+              onClear={() => { setEImgFile(null); setEImgPreview(null); }}
+            />
           </Field>
           {editError && <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>{editError}</div>}
           <button onClick={handleEditItem} disabled={editSaving} style={{ width: "100%", padding: "14px 0", background: "#111827", color: wh, border: "none", borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: editSaving ? "not-allowed" : "pointer", opacity: editSaving ? 0.7 : 1 }}>
@@ -849,22 +1105,12 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
             <input type="text" placeholder="..." value={rNotes} onChange={(e) => setRNotes(e.target.value)} style={inputSt} />
           </Field>
           <Field label="Comprobante (opcional)">
-            <label style={{ display: "block", cursor: "pointer" }}>
-              {rFilePreview ? (
-                <img src={rFilePreview} alt="comprobante" style={{ maxHeight: 130, maxWidth: "100%", borderRadius: 6, objectFit: "contain" }} />
-              ) : (
-                <div style={{ ...inputSt, display: "flex", alignItems: "center", gap: 8, color: "#9CA3AF" }}>
-                  <span>📷</span>
-                  <span>Tomar foto o seleccionar imagen</span>
-                </div>
-              )}
-              <input type="file" accept="image/*" capture="environment" onChange={handleRestockFileChange} style={{ display: "none" }} />
-            </label>
-            {rFilePreview && (
-              <button onClick={() => { setRFile(null); setRFilePreview(null); }} style={{ background: "none", border: "none", color: rd, fontSize: 12, cursor: "pointer", marginTop: 6, padding: 0 }}>
-                Quitar foto
-              </button>
-            )}
+            <PhotoPicker
+              id="restock-receipt"
+              preview={rFilePreview}
+              onFile={(file, url) => { setRFile(file); setRFilePreview(url); }}
+              onClear={() => { setRFile(null); setRFilePreview(null); }}
+            />
           </Field>
           {parseFloat(rPrice) > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, padding: "12px 14px", background: "#F9FAFB", borderRadius: 10, cursor: "pointer" }}
@@ -884,6 +1130,13 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
 
       {showDetail && (
         <Sheet onClose={() => setShowDetail(null)} title={showDetail.name}>
+          {showDetail.image_url && (
+            <img
+              src={showDetail.image_url}
+              alt={showDetail.name}
+              style={{ width: "100%", maxHeight: 180, objectFit: "contain", borderRadius: 10, background: "#F9FAFB", marginBottom: 16 }}
+            />
+          )}
           <div style={{ background: "#F9FAFB", borderRadius: 10, padding: "12px 14px", marginBottom: 16 }}>
             <div style={{ fontSize: 12, color: mu, marginBottom: 4 }}>Stock actual estimado</div>
             <div style={{ fontSize: 22, fontWeight: 700, color: "#111827" }}>

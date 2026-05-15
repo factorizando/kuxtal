@@ -53,8 +53,8 @@ export function useInventory(groupId) {
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
-  async function addItem({ name, unit, consumptionPerDay, currentQuantity, alertThresholdDays, notes, createdBy, unitsPerPack }) {
-    const { error } = await supabase.from("inventory_items").insert({
+  async function addItem({ name, unit, consumptionPerDay, currentQuantity, alertThresholdDays, notes, createdBy, unitsPerPack, file }) {
+    const { data, error } = await supabase.from("inventory_items").insert({
       group_id: groupId,
       created_by: createdBy,
       name: name.trim(),
@@ -65,8 +65,23 @@ export function useInventory(groupId) {
       alert_threshold_days: alertThresholdDays || 14,
       notes: notes?.trim() || null,
       units_per_pack: unitsPerPack || null,
-    });
+    }).select().single();
     if (error) throw error;
+    if (file && data?.id) {
+      try {
+        const compressed = await compressImage(file);
+        const path = `items/${groupId}/${data.id}.jpg`;
+        const { error: uploadErr } = await supabase.storage
+          .from("receipts")
+          .upload(path, compressed, { upsert: true, contentType: "image/jpeg" });
+        if (!uploadErr) {
+          const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(path);
+          await supabase.from("inventory_items").update({ image_url: urlData.publicUrl }).eq("id", data.id);
+        }
+      } catch (e) {
+        console.error("item image upload error:", e);
+      }
+    }
     await fetchItems();
   }
 
@@ -116,7 +131,7 @@ export function useInventory(groupId) {
     return data || [];
   }
 
-  async function updateItem(id, { name, unit, consumptionPerDay, alertThresholdDays, notes, unitsPerPack }) {
+  async function updateItem(id, { name, unit, consumptionPerDay, alertThresholdDays, notes, unitsPerPack, file }) {
     const { error } = await supabase
       .from("inventory_items")
       .update({
@@ -129,6 +144,21 @@ export function useInventory(groupId) {
       })
       .eq("id", id);
     if (error) throw error;
+    if (file) {
+      try {
+        const compressed = await compressImage(file);
+        const path = `items/${groupId}/${id}.jpg`;
+        const { error: uploadErr } = await supabase.storage
+          .from("receipts")
+          .upload(path, compressed, { upsert: true, contentType: "image/jpeg" });
+        if (!uploadErr) {
+          const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(path);
+          await supabase.from("inventory_items").update({ image_url: urlData.publicUrl }).eq("id", id);
+        }
+      } catch (e) {
+        console.error("item image update error:", e);
+      }
+    }
     await fetchItems();
   }
 
@@ -223,5 +253,53 @@ export function useInventory(groupId) {
     return data || [];
   }
 
-  return { items, loading, addItem, updateItem, deleteItem, adjustQuantity, restock, fetchRestocks, fetchAdjustments, refetch: fetchItems };
+  async function getRestockForEntry(budgetEntryId) {
+    const { data, error } = await supabase
+      .from("inventory_restocks")
+      .select("*")
+      .eq("budget_entry_id", budgetEntryId)
+      .limit(1);
+    if (error) throw error;
+    return data?.[0] || null;
+  }
+
+  async function deleteRestockAndRevertStock(restockId, itemId, restockQuantity) {
+    const item = items.find((i) => i.id === itemId);
+    if (!item) throw new Error("Artículo no encontrado en el inventario");
+    const elapsedDays = (Date.now() - new Date(item.quantity_updated_at).getTime()) / 86400000;
+    const estimatedNow = Math.max(0, item.current_quantity - item.consumption_per_day * elapsedDays);
+    const newQuantity = Math.max(0, estimatedNow - restockQuantity);
+    const { error: itemErr } = await supabase
+      .from("inventory_items")
+      .update({ current_quantity: parseFloat(newQuantity.toFixed(3)), quantity_updated_at: new Date().toISOString() })
+      .eq("id", itemId);
+    if (itemErr) throw itemErr;
+    const { error: restockErr } = await supabase
+      .from("inventory_restocks")
+      .delete()
+      .eq("id", restockId);
+    if (restockErr) throw restockErr;
+    await fetchItems();
+  }
+
+  async function updateRestockAndAdjustStock(restockId, itemId, oldQuantity, newQuantity, newPrice, newPurchasedAt) {
+    const item = items.find((i) => i.id === itemId);
+    if (!item) throw new Error("Artículo no encontrado en el inventario");
+    const elapsedDays = (Date.now() - new Date(item.quantity_updated_at).getTime()) / 86400000;
+    const estimatedNow = Math.max(0, item.current_quantity - item.consumption_per_day * elapsedDays);
+    const adjustedQuantity = Math.max(0, estimatedNow + (newQuantity - oldQuantity));
+    const { error: itemErr } = await supabase
+      .from("inventory_items")
+      .update({ current_quantity: parseFloat(adjustedQuantity.toFixed(3)), quantity_updated_at: new Date().toISOString() })
+      .eq("id", itemId);
+    if (itemErr) throw itemErr;
+    const { error: restockErr } = await supabase
+      .from("inventory_restocks")
+      .update({ quantity: newQuantity, price: newPrice > 0 ? newPrice : null, purchased_at: newPurchasedAt })
+      .eq("id", restockId);
+    if (restockErr) throw restockErr;
+    await fetchItems();
+  }
+
+  return { items, loading, addItem, updateItem, deleteItem, adjustQuantity, restock, fetchRestocks, fetchAdjustments, getRestockForEntry, deleteRestockAndRevertStock, updateRestockAndAdjustStock, refetch: fetchItems };
 }
