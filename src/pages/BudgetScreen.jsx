@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useFamily } from "../hooks/useFamily";
 import { useBudget } from "../hooks/useBudget";
 import { useSwipe } from "../hooks/useSwipe";
@@ -334,7 +334,7 @@ function PhotoPicker({ id, preview, onFile, onClear }) {
   );
 }
 
-function InventoryItemCard({ item, canEdit, onRestock, onDetail, onAdjust }) {
+function InventoryItemCard({ item, onDetail }) {
   const days = calcDaysRemaining(item);
   const isUrgent = days < item.alert_threshold_days;
   const isWarning = !isUrgent && days < item.alert_threshold_days * 2;
@@ -344,22 +344,25 @@ function InventoryItemCard({ item, canEdit, onRestock, onDetail, onAdjust }) {
 
   return (
     <div
+      onClick={onDetail}
       style={{
         background: wh,
         borderRadius: 12,
         padding: "14px 16px",
         boxShadow: "0 1px 4px rgba(0,0,0,.06)",
         borderLeft: `4px solid ${statusColor}`,
+        cursor: "pointer",
+        WebkitTapHighlightColor: "transparent",
       }}
     >
-      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         {item.image_url && (
           <img
             src={item.image_url}
             alt={item.name}
             style={{
-              width: 52,
-              height: 52,
+              width: 48,
+              height: 48,
               borderRadius: 8,
               objectFit: "cover",
               flexShrink: 0,
@@ -367,48 +370,19 @@ function InventoryItemCard({ item, canEdit, onRestock, onDetail, onAdjust }) {
           />
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              gap: 8,
-            }}
-          >
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>
-                {item.name}
-              </div>
-              <div style={{ fontSize: 12, color: mu, marginTop: 2 }}>
-                {item.consumption_per_day} {item.unit}/día
-                {item.units_per_pack && (
-                  <span> · 📦 cajas de {item.units_per_pack}</span>
-                )}
-              </div>
-            </div>
-            {canEdit && (
-              <button
-                onClick={onRestock}
-                style={{
-                  padding: "6px 12px",
-                  background: G,
-                  color: wh,
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  flexShrink: 0,
-                }}
-              >
-                Reabastecer
-              </button>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>
+            {item.name}
+          </div>
+          <div style={{ fontSize: 12, color: mu, marginTop: 2 }}>
+            {item.consumption_per_day} {item.unit}/día
+            {item.units_per_pack && (
+              <span> · 📦 cajas de {item.units_per_pack}</span>
             )}
           </div>
-          <div style={{ margin: "10px 0 6px" }}>
+          <div style={{ margin: "8px 0 4px" }}>
             <div
               style={{
-                height: 6,
+                height: 5,
                 borderRadius: 3,
                 background: "#F3F4F6",
                 overflow: "hidden",
@@ -424,47 +398,12 @@ function InventoryItemCard({ item, canEdit, onRestock, onDetail, onAdjust }) {
               />
             </div>
           </div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <span style={{ fontSize: 13, color: statusColor, fontWeight: 600 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: statusColor, fontWeight: 600 }}>
               {isUrgent && days >= 1 ? "⚠️ " : ""}
               {daysLabel}
             </span>
-            <div style={{ display: "flex", gap: 12 }}>
-              {canEdit && (
-                <button
-                  onClick={onAdjust}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: mu,
-                    fontSize: 12,
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
-                >
-                  Ajustar
-                </button>
-              )}
-              <button
-                onClick={onDetail}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: mu,
-                  fontSize: 12,
-                  cursor: "pointer",
-                  padding: 0,
-                }}
-              >
-                Historial ›
-              </button>
-            </div>
+            <span style={{ fontSize: 11, color: mu }}>Ver detalle ›</span>
           </div>
         </div>
       </div>
@@ -579,7 +518,29 @@ function LogEntry({ entry }) {
   );
 }
 
-function Sheet({ onClose, title, children }) {
+function Sheet({ onClose, title, children, swipeToClose = false }) {
+  const touch = useRef({ x: null, y: null, valid: false });
+
+  function handleTouchStart(e) {
+    if (!swipeToClose) return;
+    const startX = e.touches[0].clientX;
+    touch.current = {
+      x: startX,
+      y: e.touches[0].clientY,
+      valid: startX >= window.innerWidth - 44,
+    };
+  }
+
+  function handleTouchEnd(e) {
+    if (!swipeToClose) return;
+    const { x: sx, y: sy, valid } = touch.current;
+    touch.current = { x: null, y: null, valid: false };
+    if (!valid || sx === null) return;
+    const dx = e.changedTouches[0].clientX - sx;
+    const dy = Math.abs(e.changedTouches[0].clientY - sy);
+    if (dx < -48 && dy < Math.abs(dx)) onClose();
+  }
+
   return (
     <div
       style={{
@@ -593,6 +554,9 @@ function Sheet({ onClose, title, children }) {
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={() => { touch.current = { x: null, y: null, valid: false }; }}
     >
       <div
         style={{
@@ -1699,10 +1663,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
                 <InventoryItemCard
                   key={item.id}
                   item={item}
-                  canEdit={canEdit}
-                  onRestock={() => openRestock(item)}
                   onDetail={() => openDetail(item)}
-                  onAdjust={() => openAdjust(item)}
                 />
               ))}
             </div>
@@ -2995,7 +2956,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
       )}
 
       {showDetail && (
-        <Sheet onClose={() => setShowDetail(null)} title={showDetail.name}>
+        <Sheet onClose={() => setShowDetail(null)} title={showDetail.name} swipeToClose>
           {showDetail.image_url && (
             <img
               src={showDetail.image_url}
