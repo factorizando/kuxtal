@@ -52,6 +52,12 @@ const lbl10 = (e = {}) => ({
   ...e,
 });
 
+function nowLocal() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 function fmt(dateStr) {
   if (!dateStr) return "";
   const d = new Date(dateStr);
@@ -203,6 +209,8 @@ export default function MainApp({
     loading,
     addGlucose,
     addBP,
+    updateGlucose,
+    updateBP,
     deleteGlucose,
     deleteBP,
   } = useReadings(user.id, targetUserId || null);
@@ -256,16 +264,21 @@ export default function MainApp({
   const [cfgSaved, setCfgSaved] = useState(false);
   const [editingCfg, setEditingCfg] = useState(false);
 
-  const [gForm, setGForm] = useState({ v: "", ctx: "En ayunas", note: "" });
+  const [gForm, setGForm] = useState({ v: "", ctx: "En ayunas", note: "", date: nowLocal() });
   const [bForm, setBForm] = useState({
     sys: "",
     dia: "",
     pulse: "",
     arm: "Brazo izquierdo",
     note: "",
+    date: nowLocal(),
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [detailRec, setDetailRec] = useState(null); // { type: 'glu'|'bp', data: {...} }
+  const [editRec, setEditRec] = useState(null); // { type: 'glu'|'bp', data: {...} }
+  const [editDraft, setEditDraft] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
 
   const latestG = gluReadings[0];
   const latestBP = bpReadings[0];
@@ -340,8 +353,13 @@ export default function MainApp({
     if (!val || val < 20 || val > 600) return;
     setSaving(true);
     try {
-      await addGlucose({ value: val, context: gForm.ctx, note: gForm.note });
-      setGForm({ v: "", ctx: "En ayunas", note: "" });
+      await addGlucose({
+        value: val,
+        context: gForm.ctx,
+        note: gForm.note,
+        recorded_at: gForm.date ? new Date(gForm.date).toISOString() : undefined,
+      });
+      setGForm({ v: "", ctx: "En ayunas", note: "", date: nowLocal() });
       setSaved(true);
       setTimeout(() => {
         setSaved(false);
@@ -364,6 +382,7 @@ export default function MainApp({
         pulse: bForm.pulse ? parseInt(bForm.pulse) : null,
         arm: bForm.arm,
         note: bForm.note,
+        recorded_at: bForm.date ? new Date(bForm.date).toISOString() : undefined,
       });
       setBForm({
         sys: "",
@@ -371,6 +390,7 @@ export default function MainApp({
         pulse: "",
         arm: "Brazo izquierdo",
         note: "",
+        date: nowLocal(),
       });
       setSaved(true);
       setTimeout(() => {
@@ -390,6 +410,63 @@ export default function MainApp({
     setCfgSaved(true);
     setTimeout(() => setCfgSaved(false), 2000);
   }
+
+  function openEdit(type, r) {
+    if (type === "glu") {
+      const d = new Date(r.recorded_at);
+      const p = (n) => String(n).padStart(2, "0");
+      const local = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+      setEditDraft({ value: String(r.value), ctx: r.context, note: r.note || "", date: local });
+    } else {
+      const d = new Date(r.recorded_at);
+      const p = (n) => String(n).padStart(2, "0");
+      const local = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+      setEditDraft({
+        sys: String(r.systolic),
+        dia: String(r.diastolic),
+        pulse: r.pulse ? String(r.pulse) : "",
+        arm: r.arm,
+        note: r.note || "",
+        date: local,
+      });
+    }
+    setEditRec({ type, data: r });
+  }
+
+  async function saveEdit() {
+    setEditSaving(true);
+    try {
+      if (editRec.type === "glu") {
+        const val = parseInt(editDraft.value);
+        if (!val || val < 20 || val > 600) return;
+        await updateGlucose(editRec.data.id, {
+          value: val,
+          context: editDraft.ctx,
+          note: editDraft.note,
+          recorded_at: new Date(editDraft.date).toISOString(),
+        });
+      } else {
+        const sys = parseInt(editDraft.sys);
+        const dia = parseInt(editDraft.dia);
+        if (!sys || !dia) return;
+        await updateBP(editRec.data.id, {
+          systolic: sys,
+          diastolic: dia,
+          pulse: editDraft.pulse ? parseInt(editDraft.pulse) : null,
+          arm: editDraft.arm,
+          note: editDraft.note,
+          recorded_at: new Date(editDraft.date).toISOString(),
+        });
+      }
+      setEditRec(null);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  const canEdit = myRoleInGroup === "admin" || !myRoleInGroup;
 
   const SavedScreen = () => (
     <div style={{ ...card(), textAlign: "center", padding: "52px 0" }}>
@@ -940,7 +1017,7 @@ export default function MainApp({
                     ))}
                   </div>
                 </div>
-                <div style={{ marginBottom: 24 }}>
+                <div style={{ marginBottom: 18 }}>
                   <div style={lbl10()}>Nota (opcional)</div>
                   <textarea
                     value={gForm.note}
@@ -958,6 +1035,26 @@ export default function MainApp({
                       fontSize: 13,
                       color: tx,
                       resize: "none",
+                      outline: "none",
+                      fontFamily: "inherit",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+                <div style={{ marginBottom: 24 }}>
+                  <div style={lbl10()}>Fecha y hora del registro</div>
+                  <input
+                    type="datetime-local"
+                    value={gForm.date}
+                    onChange={(e) => setGForm((f) => ({ ...f, date: e.target.value }))}
+                    disabled={isViewer}
+                    style={{
+                      width: "100%",
+                      border: `1.5px solid ${bd}`,
+                      borderRadius: 10,
+                      padding: "10px 12px",
+                      fontSize: 13,
+                      color: tx,
                       outline: "none",
                       fontFamily: "inherit",
                       boxSizing: "border-box",
@@ -1120,7 +1217,7 @@ export default function MainApp({
                     ))}
                   </div>
                 </div>
-                <div style={{ marginBottom: 24 }}>
+                <div style={{ marginBottom: 18 }}>
                   <div style={lbl10()}>Nota (opcional)</div>
                   <textarea
                     value={bForm.note}
@@ -1138,6 +1235,26 @@ export default function MainApp({
                       fontSize: 13,
                       color: tx,
                       resize: "none",
+                      outline: "none",
+                      fontFamily: "inherit",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+                <div style={{ marginBottom: 24 }}>
+                  <div style={lbl10()}>Fecha y hora del registro</div>
+                  <input
+                    type="datetime-local"
+                    value={bForm.date}
+                    onChange={(e) => setBForm((f) => ({ ...f, date: e.target.value }))}
+                    disabled={isViewer}
+                    style={{
+                      width: "100%",
+                      border: `1.5px solid ${bd}`,
+                      borderRadius: 10,
+                      padding: "10px 12px",
+                      fontSize: 13,
+                      color: tx,
                       outline: "none",
                       fontFamily: "inherit",
                       boxSizing: "border-box",
@@ -1221,11 +1338,14 @@ export default function MainApp({
                     return (
                       <div
                         key={r.id}
+                        onClick={() => setDetailRec({ type: "glu", data: r })}
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          padding: "9px 0",
+                          padding: "11px 0",
                           borderBottom: `1px solid ${bd}`,
+                          cursor: "pointer",
+                          WebkitTapHighlightColor: "transparent",
                         }}
                       >
                         <div
@@ -1239,70 +1359,28 @@ export default function MainApp({
                           }}
                         />
                         <div style={{ flex: 1 }}>
-                          <div
-                            style={{
-                              fontSize: 13,
-                              color: tx,
-                              fontWeight: 500,
-                            }}
-                          >
+                          <div style={{ fontSize: 13, color: tx, fontWeight: 500 }}>
                             {r.context}
                           </div>
-                          <div
-                            style={{ fontSize: 11, color: mu, marginTop: 2 }}
-                          >
+                          <div style={{ fontSize: 11, color: mu, marginTop: 2 }}>
                             {fmt(r.recorded_at)}
                           </div>
                           {r.note && (
-                            <div
-                              style={{ fontSize: 11, color: mu, marginTop: 2 }}
-                            >
+                            <div style={{ fontSize: 11, color: mu, marginTop: 2 }}>
                               {r.note}
                             </div>
                           )}
                         </div>
-                        <div
-                          style={{
-                            textAlign: "right",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                          }}
-                        >
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <div>
-                            <span
-                              style={{
-                                fontSize: 20,
-                                fontWeight: 700,
-                                color: s.color,
-                              }}
-                            >
+                            <span style={{ fontSize: 20, fontWeight: 700, color: s.color }}>
                               {r.value}
                             </span>
-                            <span
-                              style={{ fontSize: 10, color: mu, marginLeft: 4 }}
-                            >
+                            <span style={{ fontSize: 10, color: mu, marginLeft: 4 }}>
                               mg/dL
                             </span>
                           </div>
-                          {canDelete && (
-                            <button
-                              onClick={() => {
-                                if (confirm("¿Borrar este registro?"))
-                                  deleteGlucose(r.id);
-                              }}
-                              style={{
-                                background: "none",
-                                border: "none",
-                                cursor: "pointer",
-                                fontSize: 16,
-                                padding: 4,
-                                color: "#FCA5A5",
-                              }}
-                            >
-                              🗑
-                            </button>
-                          )}
+                          <span style={{ fontSize: 11, color: mu }}>›</span>
                         </div>
                       </div>
                     );
@@ -1337,11 +1415,14 @@ export default function MainApp({
                     return (
                       <div
                         key={r.id}
+                        onClick={() => setDetailRec({ type: "bp", data: r })}
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          padding: "9px 0",
+                          padding: "11px 0",
                           borderBottom: `1px solid ${bd}`,
+                          cursor: "pointer",
+                          WebkitTapHighlightColor: "transparent",
                         }}
                       >
                         <div
@@ -1355,58 +1436,26 @@ export default function MainApp({
                           }}
                         />
                         <div style={{ flex: 1 }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "baseline",
-                              gap: 4,
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontSize: 18,
-                                fontWeight: 700,
-                                color: s.color,
-                              }}
-                            >
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                            <span style={{ fontSize: 18, fontWeight: 700, color: s.color }}>
                               {r.systolic}
                             </span>
                             <span style={{ fontSize: 13, color: mu }}>/</span>
-                            <span
-                              style={{
-                                fontSize: 15,
-                                fontWeight: 600,
-                                color: s.color,
-                              }}
-                            >
+                            <span style={{ fontSize: 15, fontWeight: 600, color: s.color }}>
                               {r.diastolic}
                             </span>
-                            <span style={{ fontSize: 10, color: mu }}>
-                              mmHg
-                            </span>
+                            <span style={{ fontSize: 10, color: mu }}>mmHg</span>
                           </div>
-                          <div
-                            style={{ fontSize: 11, color: mu, marginTop: 2 }}
-                          >
-                            {r.arm}
-                            {r.pulse ? ` · ${r.pulse} lpm` : ""} ·{" "}
-                            {fmt(r.recorded_at)}
+                          <div style={{ fontSize: 11, color: mu, marginTop: 2 }}>
+                            {r.arm}{r.pulse ? ` · ${r.pulse} lpm` : ""} · {fmt(r.recorded_at)}
                           </div>
                           {r.note && (
-                            <div
-                              style={{ fontSize: 11, color: mu, marginTop: 2 }}
-                            >
+                            <div style={{ fontSize: 11, color: mu, marginTop: 2 }}>
                               {r.note}
                             </div>
                           )}
                         </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                          }}
-                        >
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <div
                             style={{
                               background: s.bg,
@@ -1420,24 +1469,7 @@ export default function MainApp({
                           >
                             {s.label}
                           </div>
-                          {canDelete && (
-                            <button
-                              onClick={() => {
-                                if (confirm("¿Borrar este registro?"))
-                                  deleteBP(r.id);
-                              }}
-                              style={{
-                                background: "none",
-                                border: "none",
-                                cursor: "pointer",
-                                fontSize: 16,
-                                padding: 4,
-                                color: "#FCA5A5",
-                              }}
-                            >
-                              🗑
-                            </button>
-                          )}
+                          <span style={{ fontSize: 11, color: mu }}>›</span>
                         </div>
                       </div>
                     );
@@ -1591,6 +1623,242 @@ export default function MainApp({
           </>
         )}
       </div>
+
+      {/* ── Bottom sheet: detalle de registro ── */}
+      {detailRec && (() => {
+        const r = detailRec.data;
+        const isGlu = detailRec.type === "glu";
+        const s = isGlu ? getGluStatus(r.value, cfg) : getBPStatus(r.systolic, r.diastolic);
+        return (
+          <div
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 60, display: "flex", alignItems: "flex-end" }}
+            onClick={() => setDetailRec(null)}
+          >
+            <div
+              style={{ background: wh, borderRadius: "20px 20px 0 0", width: "100%", paddingBottom: 32, boxSizing: "border-box" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Handle */}
+              <div style={{ display: "flex", justifyContent: "center", paddingTop: 12, paddingBottom: 4 }}>
+                <div style={{ width: 36, height: 4, borderRadius: 2, background: bd }} />
+              </div>
+              {/* Header */}
+              <div style={{ padding: "12px 20px 16px", borderBottom: `1px solid ${bd}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 11, color: mu, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 2 }}>
+                    {isGlu ? "Glucosa" : "Presión arterial"}
+                  </div>
+                  {isGlu ? (
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <span style={{ fontSize: 36, fontWeight: 800, color: s.color }}>{r.value}</span>
+                      <span style={{ fontSize: 14, color: mu }}>mg/dL</span>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                      <span style={{ fontSize: 32, fontWeight: 800, color: s.color }}>{r.systolic}</span>
+                      <span style={{ fontSize: 18, color: mu }}>/</span>
+                      <span style={{ fontSize: 26, fontWeight: 700, color: s.color }}>{r.diastolic}</span>
+                      <span style={{ fontSize: 13, color: mu }}>mmHg</span>
+                    </div>
+                  )}
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <span style={{ background: s.bg, border: `1.5px solid ${s.ring}`, borderRadius: 20, padding: "5px 12px", color: s.color, fontSize: 12, fontWeight: 700 }}>
+                    {s.label}
+                  </span>
+                </div>
+              </div>
+              {/* Detalles */}
+              <div style={{ padding: "16px 20px" }}>
+                {isGlu ? (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, color: mu }}>Contexto</span>
+                      <span style={{ fontSize: 13, color: tx, fontWeight: 500 }}>{r.context}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {r.pulse && (
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                        <span style={{ fontSize: 13, color: mu }}>Pulso</span>
+                        <span style={{ fontSize: 13, color: tx, fontWeight: 500 }}>{r.pulse} lpm</span>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, color: mu }}>Brazo</span>
+                      <span style={{ fontSize: 13, color: tx, fontWeight: 500 }}>{r.arm}</span>
+                    </div>
+                  </>
+                )}
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                  <span style={{ fontSize: 13, color: mu }}>Fecha y hora</span>
+                  <span style={{ fontSize: 13, color: tx, fontWeight: 500 }}>{fmt(r.recorded_at)}</span>
+                </div>
+                {r.note && (
+                  <div style={{ marginTop: 4, padding: "10px 12px", background: "#F9FAFB", borderRadius: 10, fontSize: 13, color: tx }}>
+                    {r.note}
+                  </div>
+                )}
+              </div>
+              {/* Botones de acción */}
+              <div style={{ padding: "0 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+                {canEdit && (
+                  <button
+                    onClick={() => { openEdit(isGlu ? "glu" : "bp", r); setDetailRec(null); }}
+                    style={{ width: "100%", padding: 14, background: hd, color: wh, border: "none", borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    Editar registro
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    onClick={() => {
+                      if (confirm("¿Borrar este registro?")) {
+                        isGlu ? deleteGlucose(r.id) : deleteBP(r.id);
+                        setDetailRec(null);
+                      }
+                    }}
+                    style={{ width: "100%", padding: 14, background: "transparent", color: "#EF4444", border: "1.5px solid #FCA5A5", borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    Eliminar registro
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Modal de edición de registro ── */}
+      {editRec && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 60, display: "flex", alignItems: "flex-end" }}
+          onClick={() => setEditRec(null)}
+        >
+          <div
+            style={{ background: wh, borderRadius: "20px 20px 0 0", width: "100%", maxHeight: "90vh", overflowY: "auto", paddingBottom: 32, boxSizing: "border-box" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: "18px 20px 12px", fontSize: 15, fontWeight: 700, color: hd, borderBottom: `1px solid ${bd}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>{editRec.type === "glu" ? "Editar registro de glucosa" : "Editar registro de presión"}</span>
+              <button onClick={() => setEditRec(null)} style={{ background: "none", border: "none", fontSize: 20, color: mu, cursor: "pointer", padding: 0 }}>×</button>
+            </div>
+            <div style={{ padding: "20px 20px 0" }}>
+              {editRec.type === "glu" ? (
+                <>
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={lbl10()}>Valor (mg/dL)</div>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={editDraft.value}
+                      onChange={(e) => setEditDraft((d) => ({ ...d, value: e.target.value }))}
+                      min={20} max={600}
+                      style={{ width: "100%", padding: "10px 12px", border: `1.5px solid ${bd}`, borderRadius: 10, fontSize: 24, fontWeight: 700, color: tx, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={lbl10()}>Contexto</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {CONTEXTS.map((c) => (
+                        <Chip key={c} val={c} cur={editDraft.ctx} set={(v) => setEditDraft((d) => ({ ...d, ctx: v }))} />
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={lbl10()}>Nota (opcional)</div>
+                    <textarea
+                      value={editDraft.note}
+                      onChange={(e) => setEditDraft((d) => ({ ...d, note: e.target.value }))}
+                      rows={2}
+                      style={{ width: "100%", border: `1.5px solid ${bd}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: tx, resize: "none", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: 24 }}>
+                    <div style={lbl10()}>Fecha y hora</div>
+                    <input
+                      type="datetime-local"
+                      value={editDraft.date}
+                      onChange={(e) => setEditDraft((d) => ({ ...d, date: e.target.value }))}
+                      style={{ width: "100%", border: `1.5px solid ${bd}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: tx, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 18 }}>
+                    {[["sys", "Sistólica"], ["dia", "Diastólica"]].map(([key, label]) => (
+                      <div key={key}>
+                        <div style={lbl10()}>{label}</div>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          value={editDraft[key]}
+                          onChange={(e) => setEditDraft((d) => ({ ...d, [key]: e.target.value }))}
+                          style={{ width: "100%", padding: "10px 12px", border: `1.5px solid ${bd}`, borderRadius: 10, fontSize: 20, fontWeight: 700, color: tx, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={lbl10()}>Pulso (opcional)</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={editDraft.pulse}
+                        onChange={(e) => setEditDraft((d) => ({ ...d, pulse: e.target.value }))}
+                        style={{ flex: 1, padding: "10px 12px", border: `1.5px solid ${bd}`, borderRadius: 10, fontSize: 14, color: tx, outline: "none", fontFamily: "inherit" }}
+                      />
+                      <span style={{ fontSize: 12, color: mu }}>lpm</span>
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={lbl10()}>Brazo medido</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {ARMS.map((a) => (
+                        <Chip key={a} val={a} cur={editDraft.arm} set={(v) => setEditDraft((d) => ({ ...d, arm: v }))} />
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={lbl10()}>Nota (opcional)</div>
+                    <textarea
+                      value={editDraft.note}
+                      onChange={(e) => setEditDraft((d) => ({ ...d, note: e.target.value }))}
+                      rows={2}
+                      style={{ width: "100%", border: `1.5px solid ${bd}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: tx, resize: "none", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: 24 }}>
+                    <div style={lbl10()}>Fecha y hora</div>
+                    <input
+                      type="datetime-local"
+                      value={editDraft.date}
+                      onChange={(e) => setEditDraft((d) => ({ ...d, date: e.target.value }))}
+                      style={{ width: "100%", border: `1.5px solid ${bd}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: tx, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                    />
+                  </div>
+                </>
+              )}
+              <button
+                onClick={saveEdit}
+                disabled={editSaving}
+                style={{ width: "100%", padding: 14, background: G, color: wh, border: "none", borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: "pointer", marginBottom: 10 }}
+              >
+                {editSaving ? "Guardando..." : "Guardar cambios"}
+              </button>
+              <button
+                onClick={() => setEditRec(null)}
+                style={{ width: "100%", padding: 14, background: "transparent", color: mu, border: `1.5px solid ${bd}`, borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Bottom sheet: selector de persona ── */}
       {showPersonSelector && (() => {

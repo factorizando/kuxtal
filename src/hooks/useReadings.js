@@ -96,44 +96,64 @@ export function useReadings(userId, targetUserId = null) {
     );
   }
 
-  async function addGlucose({ value, context, note }) {
+  async function addGlucose({ value, context, note, recorded_at }) {
+    const row = { user_id: dataUserId, recorded_by: userId, value, context, note };
+    if (recorded_at) row.recorded_at = recorded_at;
     const { data, error } = await supabase
       .from("glucose_readings")
-      .insert({
-        user_id: dataUserId,
-        recorded_by: userId,
-        value,
-        context,
-        note,
-      })
+      .insert(row)
       .select()
       .single();
     if (error) throw error;
-    setGluReadings((prev) => [data, ...prev]);
-
-    // Enviar alerta si es crítico (sin bloquear el flujo)
+    setGluReadings((prev) => {
+      const next = [data, ...prev];
+      return next.sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+    });
     sendAlertIfCritical({ type: "glucose", value }).catch(console.error);
   }
 
-  async function addBP({ systolic, diastolic, pulse, arm, note }) {
+  async function addBP({ systolic, diastolic, pulse, arm, note, recorded_at }) {
+    const row = { user_id: dataUserId, recorded_by: userId, systolic, diastolic, pulse, arm, note };
+    if (recorded_at) row.recorded_at = recorded_at;
     const { data, error } = await supabase
       .from("bp_readings")
-      .insert({
-        user_id: dataUserId,
-        recorded_by: userId,
-        systolic,
-        diastolic,
-        pulse,
-        arm,
-        note,
-      })
+      .insert(row)
       .select()
       .single();
     if (error) throw error;
-    setBpReadings((prev) => [data, ...prev]);
-
-    // Enviar alerta si es crítico (sin bloquear el flujo)
+    setBpReadings((prev) => {
+      const next = [data, ...prev];
+      return next.sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+    });
     sendAlertIfCritical({ type: "bp", systolic, diastolic }).catch(console.error);
+  }
+
+  async function updateGlucose(id, fields) {
+    const { data, error } = await supabase
+      .from("glucose_readings")
+      .update(fields)
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw error;
+    setGluReadings((prev) => {
+      const next = prev.map((r) => (r.id === id ? data : r));
+      return next.sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+    });
+  }
+
+  async function updateBP(id, fields) {
+    const { data, error } = await supabase
+      .from("bp_readings")
+      .update(fields)
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw error;
+    setBpReadings((prev) => {
+      const next = prev.map((r) => (r.id === id ? data : r));
+      return next.sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+    });
   }
 
   async function deleteGlucose(id) {
@@ -160,6 +180,8 @@ export function useReadings(userId, targetUserId = null) {
     loading,
     addGlucose,
     addBP,
+    updateGlucose,
+    updateBP,
     deleteGlucose,
     deleteBP,
     refetch: fetchAll,
