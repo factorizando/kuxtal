@@ -26,7 +26,6 @@ const CONTEXTS = [
   "Otro",
 ];
 const ARMS = ["Brazo izquierdo", "Brazo derecho"];
-const DEFAULT_CFG = { hypo: 70, target_high: 180, high: 250 };
 
 const G = "#059669",
   tx = "#111827",
@@ -203,6 +202,18 @@ function RangeInput({ label, value, min, max, unit, onChange, color }) {
 }
 
 const SUB_TABS = ["inicio", "registrar", "historial", "config"];
+
+function SavedScreen() {
+  return (
+    <div style={{ ...card(), textAlign: "center", padding: "52px 0" }}>
+      <div style={{ fontSize: 56, marginBottom: 14 }}>✅</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: G }}>¡Guardado!</div>
+      <div style={{ fontSize: 13, color: mu, marginTop: 6 }}>
+        Regresando al inicio...
+      </div>
+    </div>
+  );
+}
 
 export default function MainApp({
   user,
@@ -480,16 +491,6 @@ export default function MainApp({
   }
 
   const canEdit = myRoleInGroup === "admin" || !myRoleInGroup;
-
-  const SavedScreen = () => (
-    <div style={{ ...card(), textAlign: "center", padding: "52px 0" }}>
-      <div style={{ fontSize: 56, marginBottom: 14 }}>✅</div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: G }}>¡Guardado!</div>
-      <div style={{ fontSize: 13, color: mu, marginTop: 6 }}>
-        Regresando al inicio...
-      </div>
-    </div>
-  );
 
   if (loading)
     return (

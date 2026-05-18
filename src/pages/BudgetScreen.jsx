@@ -134,17 +134,15 @@ function SummaryCard({ label, value, color, bold }) {
   );
 }
 
-function EntryCard({ entry, canDelete, onDelete, onEdit, onViewReceipt }) {
+function EntryCard({ entry, onClick }) {
   const isIncome = entry.type === "income";
   const color = isIncome ? G : rd;
   const sign = isIncome ? "+" : "−";
-  const monthAbbr = MESES[parseInt(entry.entry_date?.split("-")[1]) - 1]?.slice(
-    0,
-    3,
-  );
+  const monthAbbr = MESES[parseInt(entry.entry_date?.split("-")[1]) - 1]?.slice(0, 3);
 
   return (
     <div
+      onClick={onClick}
       style={{
         background: wh,
         borderRadius: 10,
@@ -153,6 +151,8 @@ function EntryCard({ entry, canDelete, onDelete, onEdit, onViewReceipt }) {
         display: "flex",
         gap: 12,
         alignItems: "flex-start",
+        cursor: "pointer",
+        WebkitTapHighlightColor: "transparent",
       }}
     >
       <div
@@ -168,14 +168,7 @@ function EntryCard({ entry, canDelete, onDelete, onEdit, onViewReceipt }) {
         <div style={{ fontSize: 17, fontWeight: 700, color, lineHeight: 1 }}>
           {entry.entry_date?.split("-")[2]}
         </div>
-        <div
-          style={{
-            fontSize: 10,
-            color,
-            textTransform: "uppercase",
-            marginTop: 1,
-          }}
-        >
+        <div style={{ fontSize: 10, color, textTransform: "uppercase", marginTop: 1 }}>
           {monthAbbr}
         </div>
       </div>
@@ -189,72 +182,16 @@ function EntryCard({ entry, canDelete, onDelete, onEdit, onViewReceipt }) {
           </div>
         )}
         {entry.note && (
-          <div style={{ fontSize: 12, color: mu, marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: mu, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {entry.note}
           </div>
         )}
-        {entry.receipt_url && (
-          <button
-            onClick={onViewReceipt}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#3B82F6",
-              fontSize: 12,
-              cursor: "pointer",
-              padding: 0,
-              marginTop: 4,
-            }}
-          >
-            🧾 Ver comprobante
-          </button>
-        )}
       </div>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-end",
-          gap: 8,
-          flexShrink: 0,
-        }}
-      >
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
         <div style={{ fontWeight: 700, fontSize: 15, color }}>
-          {sign}
-          {fmtCurrency(parseFloat(entry.amount))}
+          {sign}{fmtCurrency(parseFloat(entry.amount))}
         </div>
-        {canDelete && (
-          <div style={{ display: "flex", gap: 10 }}>
-            <button
-              onClick={onEdit}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#9CA3AF",
-                fontSize: 16,
-                cursor: "pointer",
-                padding: 0,
-                lineHeight: 1,
-              }}
-            >
-              ✏️
-            </button>
-            <button
-              onClick={onDelete}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#D1D5DB",
-                fontSize: 17,
-                cursor: "pointer",
-                padding: 0,
-                lineHeight: 1,
-              }}
-            >
-              🗑
-            </button>
-          </div>
-        )}
+        <span style={{ fontSize: 11, color: mu }}>Ver detalle ›</span>
       </div>
     </div>
   );
@@ -662,6 +599,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [showContributorSheet, setShowContributorSheet] = useState(false);
 
   // ── Edit entry state ──────────────────────────────────────
+  const [showEntryDetail, setShowEntryDetail] = useState(null);
   const [showEditEntry, setShowEditEntry] = useState(null);
   const [eType, setEType] = useState("expense");
   const [eAmount, setEAmount] = useState("");
@@ -1553,10 +1491,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
                   <EntryCard
                     key={entry.id}
                     entry={entry}
-                    canDelete={canDelete}
-                    onDelete={() => handleDelete(entry.id)}
-                    onEdit={() => openEditEntry(entry)}
-                    onViewReceipt={() => setViewReceipt(entry.receipt_url)}
+                    onClick={() => setShowEntryDetail(entry)}
                   />
                 ))}
               </div>
@@ -2499,6 +2434,82 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
             ×
           </button>
         </div>
+      )}
+
+      {showEntryDetail && (
+        <Sheet onClose={() => setShowEntryDetail(null)} title="Detalle del movimiento" swipeToClose>
+          {(() => {
+            const e = showEntryDetail;
+            const isIncome = e.type === "income";
+            const color = isIncome ? G : rd;
+            const sign = isIncome ? "+" : "−";
+            const [ey, em, ed] = (e.entry_date || "").split("-");
+            const dateLabel = ed && em && ey
+              ? `${parseInt(ed)} de ${MESES[parseInt(em) - 1]} ${ey}`
+              : e.entry_date;
+            return (
+              <>
+                <div style={{ background: isIncome ? "#D1FAE5" : "#FEE2E2", borderRadius: 10, padding: "14px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, color, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
+                      {isIncome ? "💰 Ingreso" : "💸 Gasto"}
+                    </div>
+                    <div style={{ fontSize: 26, fontWeight: 700, color, marginTop: 2 }}>
+                      {sign}{fmtCurrency(parseFloat(e.amount))}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 13, color, fontWeight: 600 }}>{dateLabel}</div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                  <div style={{ background: "#F9FAFB", borderRadius: 8, padding: "10px 14px" }}>
+                    <div style={{ fontSize: 11, color: mu, marginBottom: 2, textTransform: "uppercase", letterSpacing: 1 }}>Categoría</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>{e.category}</div>
+                  </div>
+                  {(e.contributor?.full_name || e.contributor_label) && (
+                    <div style={{ background: "#F9FAFB", borderRadius: 8, padding: "10px 14px" }}>
+                      <div style={{ fontSize: 11, color: mu, marginBottom: 2, textTransform: "uppercase", letterSpacing: 1 }}>Registrado por</div>
+                      <div style={{ fontSize: 14, color: "#111827" }}>👤 {e.contributor?.full_name || e.contributor_label}</div>
+                    </div>
+                  )}
+                  {e.note && (
+                    <div style={{ background: "#F9FAFB", borderRadius: 8, padding: "10px 14px" }}>
+                      <div style={{ fontSize: 11, color: mu, marginBottom: 2, textTransform: "uppercase", letterSpacing: 1 }}>Nota</div>
+                      <div style={{ fontSize: 14, color: "#111827" }}>{e.note}</div>
+                    </div>
+                  )}
+                  {e.receipt_url && (
+                    <button
+                      onClick={() => { setShowEntryDetail(null); setViewReceipt(e.receipt_url); }}
+                      style={{ background: "#EFF6FF", border: "none", borderRadius: 8, padding: "10px 14px", textAlign: "left", cursor: "pointer", color: "#3B82F6", fontSize: 14, fontWeight: 500 }}
+                    >
+                      🧾 Ver comprobante
+                    </button>
+                  )}
+                </div>
+
+                {canDelete && (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={() => { setShowEntryDetail(null); openEditEntry(e); }}
+                      style={{ flex: 1, padding: "12px 0", background: G, color: wh, border: "none", borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => { setShowEntryDetail(null); handleDelete(e.id); }}
+                      style={{ padding: "12px 16px", background: wh, color: rd, border: `1.5px solid ${rd}`, borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </Sheet>
       )}
 
       {/* ── BOTTOM SHEETS: Inventario ── */}
