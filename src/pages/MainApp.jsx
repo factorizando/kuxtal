@@ -58,12 +58,25 @@ function nowLocal() {
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+// Parses "YYYY-MM-DDTHH:MM" as local time (safe cross-browser: multi-arg constructor always uses local time)
+function parseLocalDT(str) {
+  if (!str) return new Date(NaN);
+  const [datePart, timePart = "00:00"] = str.split("T");
+  const [y, mo, d] = datePart.split("-").map(Number);
+  const [h, mi] = timePart.split(":").map(Number);
+  return new Date(y, mo - 1, d, h, mi);
+}
+
 function fmt(dateStr) {
   if (!dateStr) return "";
   const d = new Date(dateStr);
   const now = new Date();
-  const diff = Math.floor((now - d) / 86400000);
-  const time = d.toTimeString().slice(0, 5);
+  const p = (n) => String(n).padStart(2, "0");
+  // Compare calendar days in local time (not elapsed 24-hour periods)
+  const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diff = Math.round((nowDay - dDay) / 86400000);
+  const time = `${p(d.getHours())}:${p(d.getMinutes())}`;
   if (diff === 0) return `Hoy · ${time}`;
   if (diff === 1) return `Ayer · ${time}`;
   return `Hace ${diff} días · ${time}`;
@@ -301,7 +314,7 @@ export default function MainApp({
     .slice(0, 10)
     .reverse()
     .map((r) => ({
-      t: new Date(r.recorded_at).toTimeString().slice(0, 5),
+      t: (() => { const d = new Date(r.recorded_at); const p = n => String(n).padStart(2,"0"); return `${p(d.getHours())}:${p(d.getMinutes())}`; })(),
       v: r.value,
     }));
 
@@ -357,7 +370,7 @@ export default function MainApp({
         value: val,
         context: gForm.ctx,
         note: gForm.note,
-        recorded_at: gForm.date ? new Date(gForm.date).toISOString() : undefined,
+        recorded_at: gForm.date ? parseLocalDT(gForm.date).toISOString() : undefined,
       });
       setGForm({ v: "", ctx: "En ayunas", note: "", date: nowLocal() });
       setSaved(true);
@@ -382,7 +395,7 @@ export default function MainApp({
         pulse: bForm.pulse ? parseInt(bForm.pulse) : null,
         arm: bForm.arm,
         note: bForm.note,
-        recorded_at: bForm.date ? new Date(bForm.date).toISOString() : undefined,
+        recorded_at: bForm.date ? parseLocalDT(bForm.date).toISOString() : undefined,
       });
       setBForm({
         sys: "",
@@ -443,7 +456,7 @@ export default function MainApp({
           value: val,
           context: editDraft.ctx,
           note: editDraft.note,
-          recorded_at: new Date(editDraft.date).toISOString(),
+          recorded_at: parseLocalDT(editDraft.date).toISOString(),
         });
       } else {
         const sys = parseInt(editDraft.sys);
@@ -455,7 +468,7 @@ export default function MainApp({
           pulse: editDraft.pulse ? parseInt(editDraft.pulse) : null,
           arm: editDraft.arm,
           note: editDraft.note,
-          recorded_at: new Date(editDraft.date).toISOString(),
+          recorded_at: parseLocalDT(editDraft.date).toISOString(),
         });
       }
       setEditRec(null);
