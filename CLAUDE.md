@@ -67,6 +67,7 @@ App.jsx (main layout + screen routing)
 ├── AuthScreen.jsx (login/register form)
 ├── MainApp.jsx (health dashboard — glucose + BP charts, add readings)
 ├── FamilyScreen.jsx (manage groups, members, invitations, view other patients)
+├── BudgetScreen.jsx (budget movements + inventory management)
 └── ProfileScreen.jsx (user settings, avatar, glucose ranges, push permissions)
 ```
 
@@ -84,12 +85,16 @@ All components use inline styles with shared color constants (`G="#059669"` prim
 
 **Supabase Tables**
 - `profiles` — full_name, avatar_url, glucose_hypo/target_high/high, push_endpoint (custom ranges per user)
-- `glucose_readings` — user_id, recorded_by, value, context (timing), note, recorded_at
-- `bp_readings` — user_id, recorded_by, systolic, diastolic, pulse, arm, note, recorded_at
+- `glucose_readings` — user_id, recorded_by, value, context (timing), note, recorded_at (`timestamptz`)
+- `bp_readings` — user_id, recorded_by, systolic, diastolic, pulse, arm, note, recorded_at (`timestamptz`)
 - `family_groups` — name, created_at
 - `family_memberships` — user_id, group_id, role
 - `family_invitations` — group_id, code, role, created_by, created_at
 - `push_subscriptions` — user_id, endpoint, subscription (JSON), created_at
+- `budget_entries` — group_id, recorded_by, type (income/expense), amount, category, note, entry_date (`date`), receipt_url, created_at
+- `inventory_items` — group_id, name, unit, units_per_pack, consumption_per_day, current_quantity, alert_threshold_days, image_url, quantity_updated_at (`timestamptz`), created_at
+- `inventory_restocks` — item_id, group_id, quantity, price, brand, store, purchased_at (`date`), notes, created_at
+- `audit_log` — group_id, recorded_by, entity_type, entity_id, action, before (JSON), after (JSON), occurred_at (`timestamptz`)
 
 **RPC Functions** (Supabase-managed)
 - `create_family_group(group_name)` — Creates group and adds caller as admin
@@ -140,6 +145,8 @@ All components use inline styles with shared color constants (`G="#059669"` prim
 - **No CSS files**: All styling is inline `style` props; `App.css` exists but rarely used
 - **Form Inputs**: Simple text/password inputs with consistent styling; no form library
 - **Responsive**: Fixed bottom navigation, scrollable content area with padding to avoid nav overlap
+- **Tappable cards with detail Sheet**: List items (inventory, budget movements) are fully tappable (`cursor: pointer`, `WebkitTapHighlightColor: transparent`, "Ver detalle ›" hint). Tapping opens a bottom `Sheet` with full info and action buttons (Editar/Eliminar). No inline action buttons on list items. Follow this pattern for any new list with editable items.
+- **Bottom Sheet (`Sheet` component)**: Reusable component in `BudgetScreen.jsx` with optional swipe-to-close gesture. Props: `onClose`, `title`, `children`, `swipeToClose`.
 
 ## Key Files to Understand
 
@@ -147,8 +154,11 @@ All components use inline styles with shared color constants (`G="#059669"` prim
 - `/src/hooks/useAuth.js` — Authentication and profile CRUD
 - `/src/hooks/useReadings.js` — Glucose/BP data fetching, insertion, alerts
 - `/src/hooks/useFamily.js` — Family group management and role-based logic
+- `/src/hooks/useBudget.js` — Budget entries CRUD
+- `/src/hooks/useInventory.js` — Inventory items, restocks, stock adjustment
 - `/src/utils/analysis.js` — Status classification and alert determination
 - `/src/pages/MainApp.jsx` — Main dashboard (longest file ~1500 LOC)
+- `/src/pages/BudgetScreen.jsx` — Budget movements + inventory (~3400 LOC); contains reusable `Sheet` component
 - `/src/pages/FamilyScreen.jsx` — Group/member management (~800 LOC)
 - `vite.config.js` — PWA manifest and icon configuration
 
@@ -160,6 +170,18 @@ All components use inline styles with shared color constants (`G="#059669"` prim
 4. **Error handling** — Try/catch blocks in async handlers; errors stored in component state and displayed inline
 5. **Optimistic updates** — State updated immediately after successful mutations (e.g., `setGluReadings([data, ...prev])`)
 6. **Conditional rendering** — Based on `loading`, `user`, `myRole`, `viewingPatient` state flags
+7. **No nested components** — Never define a React component (arrow function or function declaration) inside another component's body. Define all components at module level to avoid recreation on every render.
+
+## Date & Timezone Rules
+
+These are non-obvious bugs that have already burned us. Follow these patterns strictly:
+
+- **Never** use `new Date().toISOString().split("T")[0]` for the local date — `toISOString()` is UTC; after ~6 PM in Mexico (UTC-5/UTC-6) it returns the next day. Use `todayStr()` in `BudgetScreen.jsx` or equivalent with `getFullYear/getMonth/getDate`.
+- **Never** use `new Date(datetimeLocalStr).toISOString()` to convert a `datetime-local` input value — some browsers treat the timezone-less string as UTC. Use `parseLocalDT()` defined in `MainApp.jsx` (multi-argument constructor always uses local time).
+- **Never** use `toTimeString().slice(0, 5)` for displaying time — format is implementation-defined. Use `getHours()` and `getMinutes()` with zero-padding.
+- **Hoy/Ayer labels** — Compare calendar days using `new Date(y, m, d)` (midnight local), not elapsed milliseconds. See `fmt()` in `MainApp.jsx`.
+- **`timestamptz` columns** (recorded_at, occurred_at, quantity_updated_at): store UTC via `.toISOString()`, display with `getHours/getMinutes` or `toLocaleString`. Supabase returns these with `+00:00` offset — `new Date()` parses them correctly.
+- **`date` columns** (entry_date, purchased_at): pure date string `"YYYY-MM-DD"`, no timezone conversion. Store using `todayStr()` or the value from `<input type="date">` directly.
 
 ## Build & Deployment
 
