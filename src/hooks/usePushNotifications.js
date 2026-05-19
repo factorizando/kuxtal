@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
@@ -16,16 +16,17 @@ export function usePushNotifications(userId) {
   );
   const [subscribed, setSubscribed] = useState(false);
 
-  useEffect(() => {
-    checkSubscription();
-  }, [userId]);
-
-  async function checkSubscription() {
+  const checkSubscription = useCallback(async () => {
     if (!("serviceWorker" in navigator) || !userId) return;
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
     setSubscribed(!!sub);
-  }
+  }, [userId]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    checkSubscription();
+  }, [checkSubscription]);
 
   async function subscribe() {
     if (!userId) return;

@@ -94,6 +94,7 @@ export default function FamilyScreen({
   // Notifica a App.jsx cuando cambia el rol del usuario en el grupo activo
   useEffect(() => {
     if (onRoleChange) onRoleChange(myRole);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myRole]);
 
   function flash(type, text) {

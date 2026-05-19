@@ -12,46 +12,6 @@ const G = "#059669",
   bd = "#E5E7EB",
   wh = "#FFFFFF";
 
-function Avatar({ profile, user, size = 36, onClick }) {
-  const initials = (profile?.full_name || user?.email || "?")
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        cursor: "pointer",
-        background: profile?.avatar_url ? "transparent" : `${G}33`,
-        border: `2px solid ${G}66`,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: size * 0.38,
-        fontWeight: 700,
-        color: G,
-        overflow: "hidden",
-        flexShrink: 0,
-      }}
-    >
-      {profile?.avatar_url ? (
-        <img
-          src={profile.avatar_url}
-          alt="avatar"
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
-      ) : (
-        initials
-      )}
-    </div>
-  );
-}
 
 export default function App() {
   const { user, profile, loading, signOut } = useAuth();
@@ -124,6 +84,7 @@ export default function App() {
 
   // Auto-detectar pacientes del grupo y preseleccionar el primero
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPatients([]);
     setMyRoleInGroup(null);
     setViewingPatient(null);
@@ -169,7 +130,7 @@ export default function App() {
         setViewingPatient((prev) => prev ?? unique[0]);
       }
     })();
-  }, [user?.id]);
+  }, [user]);
 
   function handleViewPatient(patient) {
     setViewingPatient(patient);

@@ -1,3 +1,4 @@
+/* global clients */
 // Requerido por vite-plugin-pwa (injectManifest); no precacheamos assets.
 self.__WB_MANIFEST;
 

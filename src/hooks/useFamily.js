@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 
 function generateCode() {
@@ -54,7 +54,9 @@ export function useFamily(userId) {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchGroups();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   async function createGroup(name) {

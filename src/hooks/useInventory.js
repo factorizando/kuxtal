@@ -51,7 +51,10 @@ export function useInventory(groupId) {
     }
   }, [groupId]);
 
-  useEffect(() => { fetchItems(); }, [fetchItems]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchItems();
+  }, [fetchItems]);
 
   useEffect(() => {
     if (!groupId) return;

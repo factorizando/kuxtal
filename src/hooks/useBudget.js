@@ -46,6 +46,7 @@ export function useBudget(groupId) {
   }, [groupId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchEntries();
   }, [fetchEntries]);
 
