@@ -70,15 +70,17 @@ function fmt(dateStr) {
   if (!dateStr) return "";
   const d = new Date(dateStr);
   const now = new Date();
-  const p = (n) => String(n).padStart(2, "0");
-  // Compare calendar days in local time (not elapsed 24-hour periods)
   const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const diff = Math.round((nowDay - dDay) / 86400000);
-  const time = `${p(d.getHours())}:${p(d.getMinutes())}`;
+  const h = d.getHours();
+  const m = String(d.getMinutes()).padStart(2, "0");
+  const time = `${h % 12 || 12}:${m} ${h < 12 ? "am" : "pm"}`;
   if (diff === 0) return `Hoy · ${time}`;
   if (diff === 1) return `Ayer · ${time}`;
-  return `Hace ${diff} días · ${time}`;
+  const days = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+  const months = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+  return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]} · ${time}`;
 }
 
 function Chip({ val, cur, set }) {
