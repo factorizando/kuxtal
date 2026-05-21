@@ -30,10 +30,16 @@ export default function AuthScreen() {
     }
   }
 
+  const acMap = { name: "name", email: "email" };
   const input = (placeholder, key, type = "text") => (
     <input
       type={type}
       placeholder={placeholder}
+      autoComplete={
+        type === "password"
+          ? mode === "login" ? "current-password" : "new-password"
+          : acMap[key] ?? "off"
+      }
       value={form[key]}
       onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
       style={{
@@ -41,7 +47,7 @@ export default function AuthScreen() {
         padding: "12px 14px",
         border: `1.5px solid ${bd}`,
         borderRadius: 10,
-        fontSize: 14,
+        fontSize: 16,
         color: tx,
         outline: "none",
         fontFamily: "inherit",
@@ -54,7 +60,7 @@ export default function AuthScreen() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         background: "#F4F2ED",
         display: "flex",
         alignItems: "center",

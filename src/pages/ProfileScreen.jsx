@@ -117,7 +117,7 @@ export default function ProfileScreen({ onClose, signOut }) {
     .slice(0, 2);
 
   return (
-    <div {...swipeHandlers} style={{ background: bg, minHeight: "100vh", fontFamily: "system-ui,-apple-system,sans-serif" }}>
+    <div {...swipeHandlers} style={{ background: bg, minHeight: "100dvh", fontFamily: "system-ui,-apple-system,sans-serif" }}>
 
       {/* Header */}
       <div style={{ background: hd, padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>

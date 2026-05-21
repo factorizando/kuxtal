@@ -459,26 +459,24 @@ function LogEntry({ entry }) {
 }
 
 function Sheet({ onClose, title, children, swipeToClose = false }) {
-  const touch = useRef({ x: null, y: null, valid: false });
+  const touch = useRef({ x: null, y: null });
 
   function handleTouchStart(e) {
     if (!swipeToClose) return;
-    const startX = e.touches[0].clientX;
     touch.current = {
-      x: startX,
+      x: e.touches[0].clientX,
       y: e.touches[0].clientY,
-      valid: startX >= window.innerWidth - 44,
     };
   }
 
   function handleTouchEnd(e) {
     if (!swipeToClose) return;
-    const { x: sx, y: sy, valid } = touch.current;
-    touch.current = { x: null, y: null, valid: false };
-    if (!valid || sx === null) return;
-    const dx = e.changedTouches[0].clientX - sx;
-    const dy = Math.abs(e.changedTouches[0].clientY - sy);
-    if (dx < -48 && dy < Math.abs(dx)) onClose();
+    const { x: sx, y: sy } = touch.current;
+    touch.current = { x: null, y: null };
+    if (sx === null) return;
+    const dy = e.changedTouches[0].clientY - sy;
+    const dx = Math.abs(e.changedTouches[0].clientX - sx);
+    if (dy > 60 && dy > dx) onClose();
   }
 
   return (
@@ -496,7 +494,7 @@ function Sheet({ onClose, title, children, swipeToClose = false }) {
       }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      onTouchCancel={() => { touch.current = { x: null, y: null, valid: false }; }}
+      onTouchCancel={() => { touch.current = { x: null, y: null }; }}
     >
       <div
         style={{
@@ -504,11 +502,15 @@ function Sheet({ onClose, title, children, swipeToClose = false }) {
           borderRadius: "20px 20px 0 0",
           padding: 24,
           width: "100%",
-          maxHeight: "92vh",
+          maxHeight: "92dvh",
           overflowY: "auto",
+          overscrollBehavior: "contain",
           boxSizing: "border-box",
         }}
       >
+        {swipeToClose && (
+          <div style={{ width: 40, height: 4, borderRadius: 2, background: "#D1D5DB", margin: "-8px auto 16px" }} />
+        )}
         <div
           style={{
             display: "flex",
@@ -1388,7 +1390,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
       style={{
         fontFamily: "system-ui,-apple-system,sans-serif",
         background: bg,
-        minHeight: "100vh",
+        minHeight: "100dvh",
         paddingBottom: 24,
       }}
     >
@@ -1886,8 +1888,9 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
               borderRadius: "20px 20px 0 0",
               padding: 24,
               width: "100%",
-              maxHeight: "92vh",
+              maxHeight: "92dvh",
               overflowY: "auto",
+              overscrollBehavior: "contain",
               boxSizing: "border-box",
             }}
           >
@@ -2105,8 +2108,9 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
               borderRadius: "20px 20px 0 0",
               padding: 24,
               width: "100%",
-              maxHeight: "92vh",
+              maxHeight: "92dvh",
               overflowY: "auto",
+              overscrollBehavior: "contain",
               boxSizing: "border-box",
             }}
           >
@@ -2638,7 +2642,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
             alt="comprobante"
             style={{
               maxWidth: "95vw",
-              maxHeight: "90vh",
+              maxHeight: "90dvh",
               borderRadius: 8,
               objectFit: "contain",
             }}

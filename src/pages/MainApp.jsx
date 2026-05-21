@@ -498,7 +498,7 @@ export default function MainApp({
     return (
       <div
         style={{
-          minHeight: "100vh",
+          minHeight: "100dvh",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -517,7 +517,7 @@ export default function MainApp({
       style={{
         background: bg,
         fontFamily: "system-ui,-apple-system,sans-serif",
-        minHeight: "100vh",
+        minHeight: "100dvh",
       }}
     >
       {/* Header */}
@@ -1048,7 +1048,7 @@ export default function MainApp({
                       border: `1.5px solid ${bd}`,
                       borderRadius: 10,
                       padding: "10px 12px",
-                      fontSize: 13,
+                      fontSize: 16,
                       color: tx,
                       resize: "none",
                       outline: "none",
@@ -1069,7 +1069,7 @@ export default function MainApp({
                       border: `1.5px solid ${bd}`,
                       borderRadius: 10,
                       padding: "10px 12px",
-                      fontSize: 13,
+                      fontSize: 16,
                       color: tx,
                       outline: "none",
                       fontFamily: "inherit",
@@ -1211,7 +1211,7 @@ export default function MainApp({
                         padding: "10px 12px",
                         border: `1.5px solid ${bd}`,
                         borderRadius: 10,
-                        fontSize: 14,
+                        fontSize: 16,
                         color: tx,
                         outline: "none",
                         fontFamily: "inherit",
@@ -1248,7 +1248,7 @@ export default function MainApp({
                       border: `1.5px solid ${bd}`,
                       borderRadius: 10,
                       padding: "10px 12px",
-                      fontSize: 13,
+                      fontSize: 16,
                       color: tx,
                       resize: "none",
                       outline: "none",
@@ -1269,7 +1269,7 @@ export default function MainApp({
                       border: `1.5px solid ${bd}`,
                       borderRadius: 10,
                       padding: "10px 12px",
-                      fontSize: 13,
+                      fontSize: 16,
                       color: tx,
                       outline: "none",
                       fontFamily: "inherit",
@@ -1753,7 +1753,7 @@ export default function MainApp({
           onClick={() => setEditRec(null)}
         >
           <div
-            style={{ background: wh, borderRadius: "20px 20px 0 0", width: "100%", maxHeight: "90vh", overflowY: "auto", paddingBottom: 32, boxSizing: "border-box" }}
+            style={{ background: wh, borderRadius: "20px 20px 0 0", width: "100%", maxHeight: "90dvh", overflowY: "auto", overscrollBehavior: "contain", paddingBottom: 32, boxSizing: "border-box" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ padding: "18px 20px 12px", fontSize: 15, fontWeight: 700, color: hd, borderBottom: `1px solid ${bd}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1788,7 +1788,7 @@ export default function MainApp({
                       value={editDraft.note}
                       onChange={(e) => setEditDraft((d) => ({ ...d, note: e.target.value }))}
                       rows={2}
-                      style={{ width: "100%", border: `1.5px solid ${bd}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: tx, resize: "none", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                      style={{ width: "100%", border: `1.5px solid ${bd}`, borderRadius: 10, padding: "10px 12px", fontSize: 16, color: tx, resize: "none", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
                     />
                   </div>
                   <div style={{ marginBottom: 24 }}>
@@ -1797,7 +1797,7 @@ export default function MainApp({
                       type="datetime-local"
                       value={editDraft.date}
                       onChange={(e) => setEditDraft((d) => ({ ...d, date: e.target.value }))}
-                      style={{ width: "100%", border: `1.5px solid ${bd}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: tx, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                      style={{ width: "100%", border: `1.5px solid ${bd}`, borderRadius: 10, padding: "10px 12px", fontSize: 16, color: tx, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
                     />
                   </div>
                 </>
@@ -1825,7 +1825,7 @@ export default function MainApp({
                         inputMode="numeric"
                         value={editDraft.pulse}
                         onChange={(e) => setEditDraft((d) => ({ ...d, pulse: e.target.value }))}
-                        style={{ flex: 1, padding: "10px 12px", border: `1.5px solid ${bd}`, borderRadius: 10, fontSize: 14, color: tx, outline: "none", fontFamily: "inherit" }}
+                        style={{ flex: 1, padding: "10px 12px", border: `1.5px solid ${bd}`, borderRadius: 10, fontSize: 16, color: tx, outline: "none", fontFamily: "inherit" }}
                       />
                       <span style={{ fontSize: 12, color: mu }}>lpm</span>
                     </div>
@@ -1844,7 +1844,7 @@ export default function MainApp({
                       value={editDraft.note}
                       onChange={(e) => setEditDraft((d) => ({ ...d, note: e.target.value }))}
                       rows={2}
-                      style={{ width: "100%", border: `1.5px solid ${bd}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: tx, resize: "none", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                      style={{ width: "100%", border: `1.5px solid ${bd}`, borderRadius: 10, padding: "10px 12px", fontSize: 16, color: tx, resize: "none", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
                     />
                   </div>
                   <div style={{ marginBottom: 24 }}>
@@ -1853,7 +1853,7 @@ export default function MainApp({
                       type="datetime-local"
                       value={editDraft.date}
                       onChange={(e) => setEditDraft((d) => ({ ...d, date: e.target.value }))}
-                      style={{ width: "100%", border: `1.5px solid ${bd}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: tx, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                      style={{ width: "100%", border: `1.5px solid ${bd}`, borderRadius: 10, padding: "10px 12px", fontSize: 16, color: tx, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
                     />
                   </div>
                 </>

@@ -141,7 +141,7 @@ export default function App() {
     return (
       <div
         style={{
-          minHeight: "100vh",
+          minHeight: "100dvh",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -162,7 +162,7 @@ export default function App() {
   return (
     <div style={{ fontFamily: "system-ui,-apple-system,sans-serif" }}>
       {/* Contenido */}
-      <div style={{ paddingBottom: 70 }}>
+      <div style={{ paddingBottom: "calc(70px + env(safe-area-inset-bottom))" }}>
         {screen === "app" && (
           <MainApp
             user={user}
@@ -194,7 +194,7 @@ export default function App() {
         <div
           style={{
             position: "fixed",
-            bottom: 82,
+            bottom: "calc(82px + env(safe-area-inset-bottom))",
             left: "50%",
             transform: "translateX(-50%)",
             background: "rgba(17,24,39,0.88)",
@@ -223,6 +223,7 @@ export default function App() {
           background: wh,
           borderTop: `1px solid ${bd}`,
           display: "flex",
+          paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
         {[
@@ -242,6 +243,7 @@ export default function App() {
               borderTop: `2.5px solid ${screen === id ? G : "transparent"}`,
               color: screen === id ? G : mu,
               transition: "color .15s",
+              WebkitTapHighlightColor: "transparent",
             }}
           >
             <div style={{ fontSize: 20 }}>{icon}</div>

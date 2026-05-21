@@ -234,7 +234,7 @@ export default function FamilyScreen({
       {...swipeHandlers}
       style={{
         background: bg,
-        minHeight: "100vh",
+        minHeight: "100dvh",
         fontFamily: "system-ui,-apple-system,sans-serif",
       }}
     >
