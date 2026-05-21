@@ -67,13 +67,15 @@ export function useRequests(groupId, userId) {
     return data;
   }
 
-  async function approveRequest(requestId, addEntryFn, restockFn, restockQuantity) {
+  async function approveRequest(requestId, addEntryFn, actualAmount, restockFn, restockQuantity) {
     const req = requests.find((r) => r.id === requestId);
     if (!req) throw new Error("Solicitud no encontrada");
 
+    const finalAmount = parseFloat(actualAmount) || req.amount;
+
     const entryId = await addEntryFn({
       type: "expense",
-      amount: req.amount,
+      amount: finalAmount,
       category: req.category,
       note: req.note,
       entryDate: req.entry_date,
@@ -84,7 +86,7 @@ export function useRequests(groupId, userId) {
       await restockFn({
         itemId: req.inventory_item_id,
         quantity: parseFloat(restockQuantity),
-        price: req.amount,
+        price: finalAmount,
         purchasedAt: req.entry_date,
         recordedBy: userId,
         createBudgetEntry: false,
@@ -94,7 +96,12 @@ export function useRequests(groupId, userId) {
 
     const { error } = await supabase
       .from("budget_requests")
-      .update({ status: "approved", resolved_by: userId, resolved_at: new Date().toISOString() })
+      .update({
+        status: "approved",
+        actual_amount: finalAmount,
+        resolved_by: userId,
+        resolved_at: new Date().toISOString(),
+      })
       .eq("id", requestId);
     if (error) throw error;
     await fetchRequests();

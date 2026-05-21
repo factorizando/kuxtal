@@ -746,6 +746,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [showRqReject, setShowRqReject] = useState(false);
   const [rqApproveStep, setRqApproveStep] = useState(false);
   const [rqApproveQty, setRqApproveQty] = useState("");
+  const [rqActualAmount, setRqActualAmount] = useState("");
 
   const canEdit = myRole === "admin" || myRole === "caregiver";
   const canDelete = myRole === "admin";
@@ -1305,18 +1306,23 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     setShowRqReject(false);
     setRqApproveStep(false);
     setRqApproveQty("");
+    setRqActualAmount("");
   }
 
   async function handleApproveRequest() {
     if (!showRequestDetail) return;
     const hasItem = !!showRequestDetail.inventory_item_id;
 
-    // Si tiene artículo de inventario y aún no pedimos la cantidad, mostrar ese paso
-    if (hasItem && !rqApproveStep) {
+    // Primer clic: mostrar paso de confirmación con monto real pre-cargado
+    if (!rqApproveStep) {
+      setRqActualAmount(String(showRequestDetail.amount));
       setRqApproveStep(true);
       return;
     }
 
+    // Validaciones del paso de confirmación
+    const actualAmt = parseFloat(rqActualAmount);
+    if (!rqActualAmount || isNaN(actualAmt) || actualAmt <= 0) return;
     if (hasItem) {
       const qty = parseFloat(rqApproveQty);
       if (!rqApproveQty || isNaN(qty) || qty <= 0) return;
@@ -1327,6 +1333,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
       await approveRequest(
         showRequestDetail.id,
         addEntry,
+        rqActualAmount,
         hasItem ? restock : null,
         hasItem ? rqApproveQty : null,
       );
@@ -3685,7 +3692,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
       {/* ── SHEET: Formulario solicitud ── */}
       {showRequestForm && (
         <Sheet onClose={() => setShowRequestForm(false)} title="Reportar compra">
-          <Field label="Monto (MXN)">
+          <Field label="Monto solicitado (MXN)">
             <input
               type="number"
               inputMode="decimal"
@@ -3813,14 +3820,30 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
       {/* ── SHEET: Detalle de solicitud ── */}
       {showRequestDetail && (
         <Sheet
-          onClose={() => { setShowRequestDetail(null); setShowRqReject(false); setRqRejectNote(""); setRqApproveStep(false); setRqApproveQty(""); }}
+          onClose={() => { setShowRequestDetail(null); setShowRqReject(false); setRqRejectNote(""); setRqApproveStep(false); setRqApproveQty(""); setRqActualAmount(""); }}
           title="Solicitud de gasto"
         >
           <div style={{ background: "#F9FAFB", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: "#111827", marginBottom: 4 }}>
+            <div style={{ fontSize: 11, color: mu, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>
+              Monto solicitado
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: "#111827", marginBottom: showRequestDetail.actual_amount ? 8 : 4 }}>
               {fmtCurrency(showRequestDetail.amount)}
             </div>
-            <div style={{ fontSize: 14, color: mu }}>{showRequestDetail.category}</div>
+            {showRequestDetail.actual_amount != null && (
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                <span style={{ fontSize: 11, color: mu, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                  Monto gastado
+                </span>
+                <span style={{
+                  fontSize: 18, fontWeight: 700,
+                  color: parseFloat(showRequestDetail.actual_amount) !== parseFloat(showRequestDetail.amount) ? am : G,
+                }}>
+                  {fmtCurrency(showRequestDetail.actual_amount)}
+                </span>
+              </div>
+            )}
+            <div style={{ fontSize: 14, color: mu, marginTop: 6 }}>{showRequestDetail.category}</div>
             {showRequestDetail.note && (
               <div style={{ fontSize: 13, color: mu, marginTop: 4, fontStyle: "italic" }}>{showRequestDetail.note}</div>
             )}
@@ -3870,33 +3893,48 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
             )}
           </div>
 
-          {/* Paso intermedio: cantidad para inventario */}
+          {/* Paso de confirmación: monto real + cantidad si hay inventario */}
           {myRole === "admin" && showRequestDetail.status === "pending" && rqApproveStep && !showRqReject && (
             <div>
-              <div style={{ background: `${G}12`, borderRadius: 10, padding: "12px 14px", marginBottom: 16 }}>
-                <div style={{ fontSize: 12, color: G, fontWeight: 600, marginBottom: 2 }}>
-                  Actualizará el inventario
-                </div>
-                <div style={{ fontSize: 14, color: "#111827" }}>
-                  📦 {showRequestDetail.inventory_item?.name}
-                </div>
+              <div style={{ background: "#F9FAFB", borderRadius: 10, padding: "12px 14px", marginBottom: 16, fontSize: 13, color: mu }}>
+                Monto solicitado: <span style={{ fontWeight: 700, color: "#111827" }}>{fmtCurrency(showRequestDetail.amount)}</span>
               </div>
-              <Field label={`Cantidad recibida (${showRequestDetail.inventory_item?.unit})`}>
+              <Field label="Monto real gastado (MXN)">
                 <input
                   type="number"
                   inputMode="decimal"
-                  placeholder="0"
-                  value={rqApproveQty}
-                  onChange={(e) => setRqApproveQty(e.target.value)}
+                  placeholder="0.00"
+                  value={rqActualAmount}
+                  onChange={(e) => setRqActualAmount(e.target.value)}
                   min="0.01"
-                  step="any"
+                  step="0.01"
                   style={inputSt}
                   autoFocus
                 />
               </Field>
+              {showRequestDetail.inventory_item && (
+                <>
+                  <div style={{ background: `${G}12`, borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, color: G, fontWeight: 600, marginBottom: 2 }}>Actualizará el inventario</div>
+                    <div style={{ fontSize: 14, color: "#111827" }}>📦 {showRequestDetail.inventory_item.name}</div>
+                  </div>
+                  <Field label={`Cantidad recibida (${showRequestDetail.inventory_item.unit})`}>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="0"
+                      value={rqApproveQty}
+                      onChange={(e) => setRqApproveQty(e.target.value)}
+                      min="0.01"
+                      step="any"
+                      style={inputSt}
+                    />
+                  </Field>
+                </>
+              )}
               <div style={{ display: "flex", gap: 10 }}>
                 <button
-                  onClick={() => setRqApproveStep(false)}
+                  onClick={() => { setRqApproveStep(false); setRqApproveQty(""); setRqActualAmount(""); }}
                   style={{
                     flex: 1, padding: "13px 0", background: "none", color: mu,
                     border: `1px solid ${bd}`, borderRadius: 10, fontSize: 14,
@@ -3907,11 +3945,17 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
                 </button>
                 <button
                   onClick={handleApproveRequest}
-                  disabled={rqResolving || !rqApproveQty || parseFloat(rqApproveQty) <= 0}
+                  disabled={
+                    rqResolving ||
+                    !rqActualAmount || parseFloat(rqActualAmount) <= 0 ||
+                    (showRequestDetail.inventory_item && (!rqApproveQty || parseFloat(rqApproveQty) <= 0))
+                  }
                   style={{
                     flex: 2, padding: "13px 0", background: G, color: wh,
                     border: "none", borderRadius: 10, fontSize: 14, fontWeight: 600,
-                    cursor: "pointer", opacity: (rqResolving || !rqApproveQty || parseFloat(rqApproveQty) <= 0) ? 0.5 : 1,
+                    cursor: "pointer",
+                    opacity: (rqResolving || !rqActualAmount || parseFloat(rqActualAmount) <= 0 ||
+                      (showRequestDetail.inventory_item && (!rqApproveQty || parseFloat(rqApproveQty) <= 0))) ? 0.5 : 1,
                   }}
                 >
                   {rqResolving ? "Procesando..." : "✅ Confirmar aprobación"}
@@ -3931,11 +3975,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
                   cursor: rqResolving ? "not-allowed" : "pointer", opacity: rqResolving ? 0.7 : 1,
                 }}
               >
-                {rqResolving
-                  ? "Procesando..."
-                  : showRequestDetail.inventory_item
-                    ? "✅ Aprobar → indicar cantidad recibida"
-                    : "✅ Aprobar y registrar movimiento"}
+                {rqResolving ? "Procesando..." : "✅ Aprobar..."}
               </button>
               <button
                 onClick={() => setShowRqReject(true)}
