@@ -90,6 +90,7 @@ export function useBudget(groupId) {
       .select()
       .single();
     if (error) throw error;
+    const entryId = data.id;
 
     if (file) {
       try {
@@ -114,6 +115,7 @@ export function useBudget(groupId) {
     }
 
     await fetchEntries();
+    return entryId;
   }
 
   async function updateEntry(id, { type, amount, category, contributorId, note, entryDate }) {

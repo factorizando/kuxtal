@@ -181,7 +181,7 @@ export function useInventory(groupId) {
     await fetchItems();
   }
 
-  async function restock({ itemId, quantity, price, brand, store, purchasedAt, notes, recordedBy, createBudgetEntry, itemName, file }) {
+  async function restock({ itemId, quantity, price, brand, store, purchasedAt, notes, recordedBy, createBudgetEntry, itemName, file, existingBudgetEntryId }) {
     const item = items.find((i) => i.id === itemId);
     if (!item) throw new Error("Artículo no encontrado");
 
@@ -195,9 +195,9 @@ export function useInventory(groupId) {
     const newQuantity = stockAtEffective + quantity;
     const newUpdatedAt = new Date(effectiveTs).toISOString();
 
-    // Crear gasto en presupuesto si se solicitó
-    let budgetEntryId = null;
-    if (createBudgetEntry && price > 0) {
+    // Crear gasto en presupuesto si se solicitó (o usar uno existente)
+    let budgetEntryId = existingBudgetEntryId || null;
+    if (!budgetEntryId && createBudgetEntry && price > 0) {
       const noteParts = [itemName, brand, store].filter(Boolean);
       const { data: budgetData, error: budgetErr } = await supabase
         .from("budget_entries")

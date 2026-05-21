@@ -4,6 +4,7 @@ import { useBudget } from "../hooks/useBudget";
 import { useSwipe } from "../hooks/useSwipe";
 import { useInventory, calcDaysRemaining } from "../hooks/useInventory";
 import { useAuditLog } from "../hooks/useAuditLog";
+import { useRequests } from "../hooks/useRequests";
 
 const G = "#059669",
   mu = "#6B7280",
@@ -539,6 +540,64 @@ function Sheet({ onClose, title, children, swipeToClose = false }) {
   );
 }
 
+const STATUS_LABEL = { pending: "Pendiente", approved: "Aprobada", rejected: "Rechazada" };
+const STATUS_COLOR = { pending: am, approved: G, rejected: rd };
+
+function RequestCard({ req, isAdmin, onTap }) {
+  const statusColor = STATUS_COLOR[req.status] || mu;
+  const d = req.entry_date ? req.entry_date.split("-") : null;
+  const dateStr = d ? `${d[2]}/${d[1]}/${d[0]}` : "";
+  return (
+    <div
+      onClick={onTap}
+      style={{
+        background: wh,
+        border: `1px solid ${bd}`,
+        borderRadius: 12,
+        padding: "12px 14px",
+        cursor: "pointer",
+        WebkitTapHighlightColor: "transparent",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+      }}
+    >
+      <div style={{ flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>
+            {fmtCurrency(req.amount)}
+          </span>
+          <span style={{
+            fontSize: 10, fontWeight: 700, color: statusColor,
+            background: `${statusColor}18`, borderRadius: 6, padding: "2px 7px",
+          }}>
+            {STATUS_LABEL[req.status]}
+          </span>
+        </div>
+        <div style={{ fontSize: 13, color: mu }}>
+          {req.category}{dateStr ? ` · ${dateStr}` : ""}
+        </div>
+        {req.inventory_item && (
+          <div style={{ fontSize: 12, color: G, marginTop: 2 }}>
+            📦 {req.inventory_item.name}
+          </div>
+        )}
+        {isAdmin && req.requester && (
+          <div style={{ fontSize: 12, color: mu, marginTop: 2 }}>
+            {req.requester.full_name}
+          </div>
+        )}
+        {req.note && (
+          <div style={{ fontSize: 12, color: mu, marginTop: 2, fontStyle: "italic" }}>
+            {req.note}
+          </div>
+        )}
+      </div>
+      <span style={{ color: mu, fontSize: 13 }}>›</span>
+    </div>
+  );
+}
+
 export default function BudgetScreen({ userId, onSwipeScreen }) {
   const swipeHandlers = useSwipe({
     onSwipeLeft: () => onSwipeScreen?.("left"),
@@ -574,6 +633,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   } = useInventory(activeGroup?.id);
 
   const { logEntries, logLoading, logAction, fetchLog } = useAuditLog(activeGroup?.id, userId);
+  const { requests, loading: reqLoading, addRequest, approveRequest, rejectRequest } = useRequests(activeGroup?.id, userId);
 
   const now = new Date();
   const [budgetTab, setBudgetTab] = useState("movimientos");
@@ -669,6 +729,24 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [adjSaving, setAdjSaving] = useState(false);
   const [adjError, setAdjError] = useState(null);
 
+  // ── Solicitudes state ─────────────────────────────────────
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [rqAmount, setRqAmount] = useState("");
+  const [rqCategory, setRqCategory] = useState("");
+  const [rqNote, setRqNote] = useState("");
+  const [rqDate, setRqDate] = useState(todayStr());
+  const [rqItemId, setRqItemId] = useState(null);
+  const [rqSaving, setRqSaving] = useState(false);
+  const [rqError, setRqError] = useState(null);
+  const [showRqCategorySheet, setShowRqCategorySheet] = useState(false);
+  const [showRqItemSheet, setShowRqItemSheet] = useState(false);
+  const [showRequestDetail, setShowRequestDetail] = useState(null);
+  const [rqRejectNote, setRqRejectNote] = useState("");
+  const [rqResolving, setRqResolving] = useState(false);
+  const [showRqReject, setShowRqReject] = useState(false);
+  const [rqApproveStep, setRqApproveStep] = useState(false);
+  const [rqApproveQty, setRqApproveQty] = useState("");
+
   const canEdit = myRole === "admin" || myRole === "caregiver";
   const canDelete = myRole === "admin";
 
@@ -711,6 +789,14 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const urgentCount = invItems.filter(
     (i) => calcDaysRemaining(i) < i.alert_threshold_days,
   ).length;
+
+  const pendingRequests = useMemo(
+    () => requests.filter((r) => r.status === "pending"),
+    [requests],
+  );
+  const requestsBadge = myRole === "admin"
+    ? pendingRequests.length
+    : requests.filter((r) => r.status === "pending" && r.requested_by === userId).length;
 
   // ── Movimientos handlers ──────────────────────────────────
   function prevMonth() {
@@ -1176,6 +1262,95 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     }
   }
 
+  // ── Solicitudes handlers ──────────────────────────────────
+  function openRequestForm() {
+    setRqAmount("");
+    setRqCategory("");
+    setRqNote("");
+    setRqDate(todayStr());
+    setRqItemId(null);
+    setRqError(null);
+    setShowRequestForm(true);
+  }
+
+  async function handleSubmitRequest() {
+    const parsed = parseFloat(rqAmount);
+    if (!rqAmount || isNaN(parsed) || parsed <= 0) {
+      setRqError("Ingresa un monto válido");
+      return;
+    }
+    if (!rqCategory) {
+      setRqError("Selecciona una categoría");
+      return;
+    }
+    if (!rqDate) {
+      setRqError("Selecciona una fecha");
+      return;
+    }
+    setRqSaving(true);
+    setRqError(null);
+    try {
+      await addRequest({ amount: rqAmount, category: rqCategory, note: rqNote, entryDate: rqDate, inventoryItemId: rqItemId });
+      setShowRequestForm(false);
+    } catch (e) {
+      setRqError(e.message || "Error al enviar");
+    } finally {
+      setRqSaving(false);
+    }
+  }
+
+  function openRequestDetail(req) {
+    setShowRequestDetail(req);
+    setRqRejectNote("");
+    setShowRqReject(false);
+    setRqApproveStep(false);
+    setRqApproveQty("");
+  }
+
+  async function handleApproveRequest() {
+    if (!showRequestDetail) return;
+    const hasItem = !!showRequestDetail.inventory_item_id;
+
+    // Si tiene artículo de inventario y aún no pedimos la cantidad, mostrar ese paso
+    if (hasItem && !rqApproveStep) {
+      setRqApproveStep(true);
+      return;
+    }
+
+    if (hasItem) {
+      const qty = parseFloat(rqApproveQty);
+      if (!rqApproveQty || isNaN(qty) || qty <= 0) return;
+    }
+
+    setRqResolving(true);
+    try {
+      await approveRequest(
+        showRequestDetail.id,
+        addEntry,
+        hasItem ? restock : null,
+        hasItem ? rqApproveQty : null,
+      );
+      setShowRequestDetail(null);
+    } catch (e) {
+      alert(e.message || "Error al aprobar");
+    } finally {
+      setRqResolving(false);
+    }
+  }
+
+  async function handleRejectRequest() {
+    if (!showRequestDetail) return;
+    setRqResolving(true);
+    try {
+      await rejectRequest(showRequestDetail.id, rqRejectNote);
+      setShowRequestDetail(null);
+    } catch (e) {
+      alert(e.message || "Error al rechazar");
+    } finally {
+      setRqResolving(false);
+    }
+  }
+
   // ── Early returns ─────────────────────────────────────────
   if (groupLoading) {
     return (
@@ -1263,6 +1438,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
         {[
           ["movimientos", "💸 Movimientos", null],
           ["inventario", "📦 Inventario", urgentCount],
+          ["solicitudes", "📨 Solicitudes", requestsBadge],
           ...(canDelete ? [["auditoria", "📋 Auditoría", null]] : []),
         ].map(([t, lbl, badge]) => (
           <button
@@ -1628,6 +1804,54 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {logEntries.map((entry) => <LogEntry key={entry.id} entry={entry} />)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── SOLICITUDES ── */}
+      {budgetTab === "solicitudes" && (
+        <div style={{ padding: "16px 16px 80px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>
+              {myRole === "admin" ? "Solicitudes del grupo" : "Mis solicitudes"}
+            </div>
+            <button
+              onClick={openRequestForm}
+              style={{ background: G, color: wh, border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
+              + Reportar compra
+            </button>
+          </div>
+
+          {myRole === "admin" && pendingRequests.length > 0 && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 600, color: mu, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+                Pendientes · {pendingRequests.length}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+                {pendingRequests.map((req) => (
+                  <RequestCard key={req.id} req={req} isAdmin={true} onTap={() => openRequestDetail(req)} />
+                ))}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: mu, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+                Historial
+              </div>
+            </>
+          )}
+
+          {reqLoading ? (
+            <div style={{ textAlign: "center", color: mu, padding: 24, fontSize: 14 }}>Cargando...</div>
+          ) : requests.length === 0 ? (
+            <div style={{ textAlign: "center", color: mu, padding: 32, fontSize: 14 }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
+              Sin solicitudes todavía
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {(myRole === "admin" ? requests : requests.filter((r) => r.requested_by === userId)).map((req) => (
+                <RequestCard key={req.id} req={req} isAdmin={myRole === "admin"} onTap={() => openRequestDetail(req)} />
+              ))}
             </div>
           )}
         </div>
@@ -3455,6 +3679,314 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
           >
             {adjSaving ? "Guardando..." : "Actualizar cantidad"}
           </button>
+        </Sheet>
+      )}
+
+      {/* ── SHEET: Formulario solicitud ── */}
+      {showRequestForm && (
+        <Sheet onClose={() => setShowRequestForm(false)} title="Reportar compra">
+          <Field label="Monto (MXN)">
+            <input
+              type="number"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={rqAmount}
+              onChange={(e) => setRqAmount(e.target.value)}
+              min="0.01"
+              step="0.01"
+              style={inputSt}
+              autoFocus
+            />
+          </Field>
+          <Field label="Categoría">
+            <button
+              onClick={() => setShowRqCategorySheet(true)}
+              style={{ ...inputSt, textAlign: "left", cursor: "pointer", color: rqCategory ? "#111827" : mu }}
+            >
+              {rqCategory || "Seleccionar categoría"}
+            </button>
+          </Field>
+          <Field label="Nota (opcional)">
+            <input
+              type="text"
+              placeholder="Ej: Insulina para el mes"
+              value={rqNote}
+              onChange={(e) => setRqNote(e.target.value)}
+              style={inputSt}
+            />
+          </Field>
+          <Field label="Fecha de compra">
+            <input
+              type="date"
+              value={rqDate}
+              onChange={(e) => setRqDate(e.target.value)}
+              style={inputSt}
+            />
+          </Field>
+          <Field label="Artículo del inventario (opcional)">
+            {rqItemId ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{
+                  flex: 1, background: `${G}12`, color: G, borderRadius: 8,
+                  padding: "9px 12px", fontSize: 14, fontWeight: 600,
+                }}>
+                  📦 {invItems.find((i) => i.id === rqItemId)?.name}
+                </span>
+                <button
+                  onClick={() => setRqItemId(null)}
+                  style={{ background: "none", border: "none", color: mu, fontSize: 20, cursor: "pointer", lineHeight: 1 }}
+                >×</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowRqItemSheet(true)}
+                style={{ ...inputSt, textAlign: "left", cursor: "pointer", color: mu }}
+              >
+                Seleccionar artículo...
+              </button>
+            )}
+          </Field>
+          {rqError && <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>{rqError}</div>}
+          <button
+            onClick={handleSubmitRequest}
+            disabled={rqSaving}
+            style={{
+              width: "100%", padding: "14px 0", background: G, color: wh,
+              border: "none", borderRadius: 10, fontSize: 15, fontWeight: 600,
+              cursor: rqSaving ? "not-allowed" : "pointer", opacity: rqSaving ? 0.7 : 1,
+            }}
+          >
+            {rqSaving ? "Enviando..." : "Enviar solicitud"}
+          </button>
+        </Sheet>
+      )}
+
+      {/* ── SHEET: Picker de categoría (solicitud) ── */}
+      {showRqCategorySheet && (
+        <Sheet onClose={() => setShowRqCategorySheet(false)} title="Categoría">
+          {EXPENSE_CATEGORIES.map((c) => (
+            <button
+              key={c}
+              onClick={() => { setRqCategory(c); setShowRqCategorySheet(false); }}
+              style={{
+                display: "block", width: "100%", textAlign: "left",
+                padding: "13px 4px", background: "none", border: "none",
+                borderBottom: `1px solid ${bd}`, fontSize: 15,
+                color: rqCategory === c ? G : "#111827",
+                fontWeight: rqCategory === c ? 700 : 400, cursor: "pointer",
+              }}
+            >
+              {c}
+            </button>
+          ))}
+        </Sheet>
+      )}
+
+      {/* ── SHEET: Picker de artículo (solicitud) ── */}
+      {showRqItemSheet && (
+        <Sheet onClose={() => setShowRqItemSheet(false)} title="Artículo del inventario">
+          {invItems.length === 0 ? (
+            <div style={{ textAlign: "center", color: mu, padding: 24, fontSize: 14 }}>
+              No hay artículos en el inventario
+            </div>
+          ) : (
+            invItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => { setRqItemId(item.id); setShowRqItemSheet(false); }}
+                style={{
+                  display: "block", width: "100%", textAlign: "left",
+                  padding: "13px 4px", background: "none", border: "none",
+                  borderBottom: `1px solid ${bd}`, fontSize: 15,
+                  color: rqItemId === item.id ? G : "#111827",
+                  fontWeight: rqItemId === item.id ? 700 : 400, cursor: "pointer",
+                }}
+              >
+                {item.name}
+                <span style={{ fontSize: 12, color: mu, marginLeft: 8 }}>{item.unit}</span>
+              </button>
+            ))
+          )}
+        </Sheet>
+      )}
+
+      {/* ── SHEET: Detalle de solicitud ── */}
+      {showRequestDetail && (
+        <Sheet
+          onClose={() => { setShowRequestDetail(null); setShowRqReject(false); setRqRejectNote(""); setRqApproveStep(false); setRqApproveQty(""); }}
+          title="Solicitud de gasto"
+        >
+          <div style={{ background: "#F9FAFB", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: "#111827", marginBottom: 4 }}>
+              {fmtCurrency(showRequestDetail.amount)}
+            </div>
+            <div style={{ fontSize: 14, color: mu }}>{showRequestDetail.category}</div>
+            {showRequestDetail.note && (
+              <div style={{ fontSize: 13, color: mu, marginTop: 4, fontStyle: "italic" }}>{showRequestDetail.note}</div>
+            )}
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+            {showRequestDetail.entry_date && (() => {
+              const [y, m, d] = showRequestDetail.entry_date.split("-");
+              return (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
+                  <span style={{ color: mu }}>Fecha de compra</span>
+                  <span style={{ fontWeight: 600, color: "#111827" }}>{d}/{m}/{y}</span>
+                </div>
+              );
+            })()}
+            {showRequestDetail.inventory_item && (
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
+                <span style={{ color: mu }}>Artículo</span>
+                <span style={{ fontWeight: 600, color: G }}>
+                  📦 {showRequestDetail.inventory_item.name}
+                </span>
+              </div>
+            )}
+            {showRequestDetail.requester && (
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
+                <span style={{ color: mu }}>Solicitado por</span>
+                <span style={{ fontWeight: 600, color: "#111827" }}>{showRequestDetail.requester.full_name}</span>
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
+              <span style={{ color: mu }}>Estado</span>
+              <span style={{ fontWeight: 700, color: STATUS_COLOR[showRequestDetail.status] }}>
+                {STATUS_LABEL[showRequestDetail.status]}
+              </span>
+            </div>
+            {showRequestDetail.status === "rejected" && showRequestDetail.response_note && (
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
+                <span style={{ color: mu }}>Motivo</span>
+                <span style={{ color: rd, maxWidth: "60%", textAlign: "right" }}>{showRequestDetail.response_note}</span>
+              </div>
+            )}
+            {showRequestDetail.resolver && showRequestDetail.status !== "pending" && (
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
+                <span style={{ color: mu }}>Resuelto por</span>
+                <span style={{ color: mu }}>{showRequestDetail.resolver.full_name}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Paso intermedio: cantidad para inventario */}
+          {myRole === "admin" && showRequestDetail.status === "pending" && rqApproveStep && !showRqReject && (
+            <div>
+              <div style={{ background: `${G}12`, borderRadius: 10, padding: "12px 14px", marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: G, fontWeight: 600, marginBottom: 2 }}>
+                  Actualizará el inventario
+                </div>
+                <div style={{ fontSize: 14, color: "#111827" }}>
+                  📦 {showRequestDetail.inventory_item?.name}
+                </div>
+              </div>
+              <Field label={`Cantidad recibida (${showRequestDetail.inventory_item?.unit})`}>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={rqApproveQty}
+                  onChange={(e) => setRqApproveQty(e.target.value)}
+                  min="0.01"
+                  step="any"
+                  style={inputSt}
+                  autoFocus
+                />
+              </Field>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => setRqApproveStep(false)}
+                  style={{
+                    flex: 1, padding: "13px 0", background: "none", color: mu,
+                    border: `1px solid ${bd}`, borderRadius: 10, fontSize: 14,
+                    fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  Atrás
+                </button>
+                <button
+                  onClick={handleApproveRequest}
+                  disabled={rqResolving || !rqApproveQty || parseFloat(rqApproveQty) <= 0}
+                  style={{
+                    flex: 2, padding: "13px 0", background: G, color: wh,
+                    border: "none", borderRadius: 10, fontSize: 14, fontWeight: 600,
+                    cursor: "pointer", opacity: (rqResolving || !rqApproveQty || parseFloat(rqApproveQty) <= 0) ? 0.5 : 1,
+                  }}
+                >
+                  {rqResolving ? "Procesando..." : "✅ Confirmar aprobación"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {myRole === "admin" && showRequestDetail.status === "pending" && !rqApproveStep && !showRqReject && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button
+                onClick={handleApproveRequest}
+                disabled={rqResolving}
+                style={{
+                  width: "100%", padding: "13px 0", background: G, color: wh,
+                  border: "none", borderRadius: 10, fontSize: 15, fontWeight: 600,
+                  cursor: rqResolving ? "not-allowed" : "pointer", opacity: rqResolving ? 0.7 : 1,
+                }}
+              >
+                {rqResolving
+                  ? "Procesando..."
+                  : showRequestDetail.inventory_item
+                    ? "✅ Aprobar → indicar cantidad recibida"
+                    : "✅ Aprobar y registrar movimiento"}
+              </button>
+              <button
+                onClick={() => setShowRqReject(true)}
+                style={{
+                  width: "100%", padding: "13px 0", background: "none", color: rd,
+                  border: `1px solid ${rd}`, borderRadius: 10, fontSize: 15,
+                  fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                Rechazar
+              </button>
+            </div>
+          )}
+
+          {myRole === "admin" && showRequestDetail.status === "pending" && showRqReject && (
+            <div>
+              <Field label="Motivo del rechazo (opcional)">
+                <input
+                  type="text"
+                  placeholder="Ej: Ya fue cubierto por el grupo"
+                  value={rqRejectNote}
+                  onChange={(e) => setRqRejectNote(e.target.value)}
+                  style={inputSt}
+                  autoFocus
+                />
+              </Field>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => setShowRqReject(false)}
+                  style={{
+                    flex: 1, padding: "13px 0", background: "none", color: mu,
+                    border: `1px solid ${bd}`, borderRadius: 10, fontSize: 14,
+                    fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleRejectRequest}
+                  disabled={rqResolving}
+                  style={{
+                    flex: 2, padding: "13px 0", background: rd, color: wh,
+                    border: "none", borderRadius: 10, fontSize: 14, fontWeight: 600,
+                    cursor: rqResolving ? "not-allowed" : "pointer", opacity: rqResolving ? 0.7 : 1,
+                  }}
+                >
+                  {rqResolving ? "Rechazando..." : "Confirmar rechazo"}
+                </button>
+              </div>
+            </div>
+          )}
         </Sheet>
       )}
     </div>
