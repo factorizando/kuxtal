@@ -6,6 +6,7 @@ import MainApp from "./pages/MainApp";
 import FamilyScreen from "./pages/FamilyScreen";
 import ProfileScreen from "./pages/ProfileScreen";
 import BudgetScreen from "./pages/BudgetScreen";
+import ReportScreen from "./pages/ReportScreen";
 
 const G = "#059669",
   mu = "#6B7280",
@@ -30,7 +31,7 @@ export default function App() {
     exitToastTimerRef.current = setTimeout(() => setExitToast(false), 2000);
   }
 
-  const SCREENS = ["app", "family", "budget"];
+  const SCREENS = ["app", "family", "budget", "report"];
   function handleSwipeScreen(direction) {
     setScreen((cur) => {
       const i = SCREENS.indexOf(cur);
@@ -187,6 +188,14 @@ export default function App() {
           />
         )}
         {screen === "budget" && <BudgetScreen userId={user.id} onSwipeScreen={handleSwipeScreen} />}
+        {screen === "report" && (
+          <ReportScreen
+            userId={user.id}
+            profile={profile}
+            viewingPatient={viewingPatient}
+            onSwipeScreen={handleSwipeScreen}
+          />
+        )}
       </div>
 
       {/* Toast doble-gesto para salir */}
@@ -214,6 +223,7 @@ export default function App() {
 
       {/* Navegación inferior */}
       <div
+        className="bottom-nav"
         style={{
           position: "fixed",
           bottom: 0,
@@ -230,6 +240,7 @@ export default function App() {
           ["app", "📊", "Salud"],
           ["family", "👨‍👩‍👧", "Familia"],
           ["budget", "💰", "Presupuesto"],
+          ["report", "📋", "Informe"],
         ].map(([id, icon, lbl]) => (
           <button
             key={id}
