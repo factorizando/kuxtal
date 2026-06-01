@@ -262,6 +262,8 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
   };
 
   const [rangeDays, setRangeDays] = useState(30);
+  const [showGlu, setShowGlu] = useState(true);
+  const [showBP, setShowBP] = useState(true);
   const [gluData, setGluData] = useState([]);
   const [bpData, setBpData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -372,6 +374,27 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
             </button>
           ))}
         </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[
+            { label: "Glucosa", active: showGlu, toggle: () => setShowGlu((v) => !v), activeColor: G, activeBg: "#ECFDF5" },
+            { label: "Presión", active: showBP, toggle: () => setShowBP((v) => !v), activeColor: "#7C3AED", activeBg: "#F5F3FF" },
+          ].map(({ label, active, toggle, activeColor, activeBg }) => (
+            <button
+              key={label}
+              onClick={toggle}
+              style={{
+                padding: "5px 11px", borderRadius: 20,
+                border: `1.5px solid ${active ? activeColor : bd}`,
+                background: active ? activeBg : wh,
+                color: active ? activeColor : mu,
+                fontSize: 12, fontWeight: 600, cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              {active ? "✓ " : ""}{label}
+            </button>
+          ))}
+        </div>
         <button
           onClick={() => window.print()}
           style={{
@@ -417,7 +440,7 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
         {!loading && (
           <>
             {/* ── GLUCOSE ── */}
-            <Section title="Glucosa en sangre" accent={G}>
+            {showGlu && <Section title="Glucosa en sangre" accent={G}>
               {!gluStats ? (
                 <div style={{ color: mu, fontSize: 13, padding: "12px 0" }}>Sin registros de glucosa en este período.</div>
               ) : (
@@ -462,10 +485,10 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
                   />
                 </>
               )}
-            </Section>
+            </Section>}
 
             {/* ── BLOOD PRESSURE ── */}
-            <Section title="Presión arterial" accent="#7C3AED">
+            {showBP && <Section title="Presión arterial" accent="#7C3AED">
               {!bpStats ? (
                 <div style={{ color: mu, fontSize: 13, padding: "12px 0" }}>Sin registros de presión en este período.</div>
               ) : (
@@ -501,7 +524,7 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
                   />
                 </>
               )}
-            </Section>
+            </Section>}
           </>
         )}
 
