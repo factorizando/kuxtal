@@ -1,4 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
+import {
+  ComposedChart, Line, ReferenceArea, ReferenceLine,
+  XAxis, YAxis, Tooltip, ResponsiveContainer,
+} from "recharts";
 import { supabase } from "../lib/supabase";
 import { useSwipe } from "../hooks/useSwipe";
 import { getGluStatus, getBPStatus } from "../utils/analysis";
@@ -17,6 +21,8 @@ const RANGES = [
   { label: "180 días", days: 180 },
 ];
 
+const MONTHS = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+
 function fmtDate(d) {
   return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
 }
@@ -27,6 +33,11 @@ function fmtDT(isoStr) {
   const h = String(d.getHours()).padStart(2, "0");
   const m = String(d.getMinutes()).padStart(2, "0");
   return `${day} ${h}:${m}`;
+}
+
+function toChartLabel(isoStr) {
+  const d = new Date(isoStr);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
 
 // ─── Sub-components (module level) ───────────────────────────────────────────
@@ -63,17 +74,142 @@ function DistBar({ segments }) {
   const active = segments.filter((s) => s.pct > 0);
   if (!active.length) return null;
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ display: "flex", height: 12, borderRadius: 6, overflow: "hidden", marginBottom: 6 }}>
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 10, color: mu, textTransform: "uppercase", fontWeight: 600, letterSpacing: 0.5, marginBottom: 6 }}>
+        Distribución de lecturas
+      </div>
+      <div style={{ display: "flex", height: 20, borderRadius: 6, overflow: "hidden", marginBottom: 6 }}>
         {active.map((s, i) => (
-          <div key={i} style={{ width: `${s.pct}%`, background: s.color }} />
+          <div key={i} style={{ width: `${s.pct}%`, background: s.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {s.pct >= 10 && (
+              <span style={{ fontSize: 10, color: wh, fontWeight: 700 }}>{Math.round(s.pct)}%</span>
+            )}
+          </div>
         ))}
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 12px" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 14px" }}>
         {active.map((s, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: mu }}>
             <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color }} />
             {s.label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GlucoseChart({ data, cfg }) {
+  if (!data.length) return null;
+  // data sorted desc; take last 60, reverse to chronological order
+  const chartData = data.slice(0, 60).reverse().map((r) => ({
+    t: toChartLabel(r.recorded_at),
+    v: r.value,
+  }));
+  const vals = chartData.map((d) => d.v);
+  const yMin = Math.max(30, Math.min(...vals) - 20);
+  const yMax = Math.min(400, Math.max(...vals) + 30);
+  const tickInterval = Math.max(0, Math.floor(chartData.length / 7) - 1);
+
+  return (
+    <div style={{ background: wh, border: `1px solid ${bd}`, borderRadius: 10, padding: "12px 8px 8px", marginBottom: 14 }}>
+      <div style={{ fontSize: 10, color: mu, textTransform: "uppercase", fontWeight: 600, letterSpacing: 0.5, marginBottom: 6, paddingLeft: 8 }}>
+        Tendencia de glucosa (últimos {Math.min(data.length, 60)} registros)
+      </div>
+      <ResponsiveContainer width="100%" height={190}>
+        <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+          {/* Colored background zones */}
+          <ReferenceArea y1={yMin} y2={Math.min(cfg.hypo, yMax)} fill="#FEE2E2" fillOpacity={0.65} ifOverflow="hidden" />
+          <ReferenceArea y1={Math.max(cfg.hypo, yMin)} y2={Math.min(cfg.target_high, yMax)} fill="#DCFCE7" fillOpacity={0.6} ifOverflow="hidden" />
+          <ReferenceArea y1={Math.max(cfg.target_high, yMin)} y2={Math.min(cfg.high, yMax)} fill="#FEF9C3" fillOpacity={0.65} ifOverflow="hidden" />
+          <ReferenceArea y1={Math.max(cfg.high, yMin)} y2={yMax} fill="#FEE2E2" fillOpacity={0.5} ifOverflow="hidden" />
+          <XAxis dataKey="t" tick={{ fontSize: 9, fill: mu }} tickLine={false} axisLine={false} interval={tickInterval} />
+          <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9, fill: mu }} tickLine={false} axisLine={false} width={38} tickFormatter={(v) => `${v}`} />
+          <Tooltip
+            formatter={(v) => [`${v} mg/dL`, "Glucosa"]}
+            contentStyle={{ fontSize: 11, borderRadius: 8, border: `1px solid ${bd}` }}
+          />
+          <Line
+            type="monotone" dataKey="v" stroke={G} strokeWidth={2}
+            dot={{ r: 2.5, fill: G, strokeWidth: 0 }}
+            activeDot={{ r: 4, strokeWidth: 0 }}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 14px", paddingLeft: 8 }}>
+        {[
+          { color: "#FEE2E2", border: "#DC2626", label: `Hipoglucemia (<${cfg.hypo})` },
+          { color: "#DCFCE7", border: "#059669", label: `En rango (${cfg.hypo}–${cfg.target_high})` },
+          { color: "#FEF9C3", border: "#D97706", label: `Elevada (${cfg.target_high}–${cfg.high})` },
+          { color: "#FECACA", border: "#B91C1C", label: `Muy elevada (>${cfg.high})` },
+        ].map((item) => (
+          <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: mu }}>
+            <div style={{ width: 12, height: 10, background: item.color, border: `1px solid ${item.border}`, borderRadius: 2 }} />
+            {item.label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BPChart({ data }) {
+  if (!data.length) return null;
+  const chartData = data.slice(0, 60).reverse().map((r) => ({
+    t: toChartLabel(r.recorded_at),
+    sys: r.systolic,
+    dia: r.diastolic,
+  }));
+  const allVals = chartData.flatMap((d) => [d.sys, d.dia]);
+  const yMin = Math.max(40, Math.min(...allVals) - 10);
+  const yMax = Math.min(240, Math.max(...allVals) + 15);
+  const tickInterval = Math.max(0, Math.floor(chartData.length / 7) - 1);
+
+  return (
+    <div style={{ background: wh, border: `1px solid ${bd}`, borderRadius: 10, padding: "12px 8px 8px", marginBottom: 14 }}>
+      <div style={{ fontSize: 10, color: mu, textTransform: "uppercase", fontWeight: 600, letterSpacing: 0.5, marginBottom: 6, paddingLeft: 8 }}>
+        Tendencia de presión arterial (últimos {Math.min(data.length, 60)} registros)
+      </div>
+      <ResponsiveContainer width="100%" height={190}>
+        <ComposedChart data={chartData} margin={{ top: 4, right: 24, left: -18, bottom: 0 }}>
+          {/* Normal zone */}
+          <ReferenceArea y1={yMin} y2={Math.min(80, yMax)} fill="#DCFCE7" fillOpacity={0.4} ifOverflow="hidden" />
+          {/* Threshold lines */}
+          {130 >= yMin && 130 <= yMax && (
+            <ReferenceLine y={130} stroke="#D97706" strokeDasharray="4 3" strokeWidth={1}
+              label={{ value: "130", position: "right", fontSize: 9, fill: "#D97706" }} />
+          )}
+          {140 >= yMin && 140 <= yMax && (
+            <ReferenceLine y={140} stroke="#EA580C" strokeDasharray="4 3" strokeWidth={1}
+              label={{ value: "140", position: "right", fontSize: 9, fill: "#EA580C" }} />
+          )}
+          {180 >= yMin && 180 <= yMax && (
+            <ReferenceLine y={180} stroke="#DC2626" strokeDasharray="4 3" strokeWidth={1}
+              label={{ value: "180", position: "right", fontSize: 9, fill: "#DC2626" }} />
+          )}
+          <XAxis dataKey="t" tick={{ fontSize: 9, fill: mu }} tickLine={false} axisLine={false} interval={tickInterval} />
+          <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9, fill: mu }} tickLine={false} axisLine={false} width={38} />
+          <Tooltip
+            formatter={(v, name) => [`${v} mmHg`, name === "sys" ? "Sistólica" : "Diastólica"]}
+            contentStyle={{ fontSize: 11, borderRadius: 8, border: `1px solid ${bd}` }}
+          />
+          <Line type="monotone" dataKey="sys" name="sys" stroke="#7C3AED" strokeWidth={2}
+            dot={{ r: 2.5, fill: "#7C3AED", strokeWidth: 0 }} activeDot={{ r: 4, strokeWidth: 0 }} />
+          <Line type="monotone" dataKey="dia" name="dia" stroke="#A78BFA" strokeWidth={2}
+            dot={{ r: 2.5, fill: "#A78BFA", strokeWidth: 0 }} activeDot={{ r: 4, strokeWidth: 0 }} />
+        </ComposedChart>
+      </ResponsiveContainer>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 14px", paddingLeft: 8 }}>
+        {[
+          { el: <div style={{ width: 16, height: 2, background: "#7C3AED", borderRadius: 1 }} />, label: "Sistólica" },
+          { el: <div style={{ width: 16, height: 2, background: "#A78BFA", borderRadius: 1 }} />, label: "Diastólica" },
+          { el: <div style={{ width: 16, height: 0, borderTop: "2px dashed #D97706" }} />, label: "130 (Elevada)" },
+          { el: <div style={{ width: 16, height: 0, borderTop: "2px dashed #EA580C" }} />, label: "140 (HTA1)" },
+          { el: <div style={{ width: 16, height: 0, borderTop: "2px dashed #DC2626" }} />, label: "180 (Crisis)" },
+        ].map((item) => (
+          <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: mu }}>
+            {item.el}
+            {item.label}
           </div>
         ))}
       </div>
@@ -287,12 +423,7 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
               ) : (
                 <>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-                    <StatCard
-                      label="Promedio"
-                      value={Math.round(gluStats.avg)}
-                      unit="mg/dL"
-                      color={gluAvgStatus.color}
-                    />
+                    <StatCard label="Promedio" value={Math.round(gluStats.avg)} unit="mg/dL" color={gluAvgStatus.color} />
                     <StatCard
                       label="Tiempo en rango"
                       value={`${Math.round((gluStats.inRange / gluStats.n) * 100)}%`}
@@ -305,18 +436,14 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
                       unit={`${gluStats.hypo} episodios`}
                       color={gluStats.hypo > 0 ? "#DC2626" : mu}
                     />
-                    <StatCard
-                      label="Variabilidad (DE)"
-                      value={Math.round(gluStats.stddev)}
-                      unit="mg/dL"
-                      color={tx}
-                    />
+                    <StatCard label="Variabilidad (DE)" value={Math.round(gluStats.stddev)} unit="mg/dL" color={tx} />
                   </div>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
                     <StatCard label="Mínimo" value={gluStats.min} unit="mg/dL" color={gluStats.min < cfg.hypo ? "#DC2626" : tx} />
                     <StatCard label="Máximo" value={gluStats.max} unit="mg/dL" color={gluStats.max > cfg.high ? "#DC2626" : tx} />
                     <StatCard label="Total registros" value={gluStats.n} unit="en el período" color={tx} />
                   </div>
+                  <GlucoseChart data={gluData} cfg={cfg} />
                   <DistBar segments={[
                     { pct: (gluStats.hypo / gluStats.n) * 100, color: "#DC2626", label: `Hipoglucemia ${Math.round((gluStats.hypo / gluStats.n) * 100)}%` },
                     { pct: (gluStats.inRange / gluStats.n) * 100, color: "#059669", label: `En rango ${Math.round((gluStats.inRange / gluStats.n) * 100)}%` },
@@ -344,18 +471,8 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
               ) : (
                 <>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-                    <StatCard
-                      label="Promedio sistólica"
-                      value={`${Math.round(bpStats.avgSys)}`}
-                      unit="mmHg"
-                      color={tx}
-                    />
-                    <StatCard
-                      label="Promedio diastólica"
-                      value={`${Math.round(bpStats.avgDia)}`}
-                      unit="mmHg"
-                      color={tx}
-                    />
+                    <StatCard label="Promedio sistólica" value={`${Math.round(bpStats.avgSys)}`} unit="mmHg" color={tx} />
+                    <StatCard label="Promedio diastólica" value={`${Math.round(bpStats.avgDia)}`} unit="mmHg" color={tx} />
                     <StatCard
                       label="Clasificación media"
                       value={bpAvgStatus.label}
@@ -364,6 +481,7 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
                     />
                     <StatCard label="Total registros" value={bpStats.n} unit="en el período" color={tx} />
                   </div>
+                  <BPChart data={bpData} />
                   <DistBar segments={[
                     { pct: (bpStats.dist.normal / bpStats.n) * 100, color: "#059669", label: `Normal ${Math.round((bpStats.dist.normal / bpStats.n) * 100)}%` },
                     { pct: (bpStats.dist.elevated / bpStats.n) * 100, color: "#D97706", label: `Elevada ${Math.round((bpStats.dist.elevated / bpStats.n) * 100)}%` },
