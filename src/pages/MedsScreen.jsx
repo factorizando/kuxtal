@@ -20,6 +20,19 @@ const G = "#059669",
   am = "#D97706",
   bl = "#2563EB";
 
+const UNITS = [
+  "tabletas",
+  "cápsulas",
+  "mL",
+  "unidades",
+  "tiras",
+  "lancetas",
+  "jeringas",
+  "plumas",
+  "frascos",
+  "cajas",
+];
+
 const inputSt = {
   width: "100%",
   padding: "10px 12px",
@@ -157,9 +170,31 @@ function TimesEditor({ times, onChange }) {
 }
 
 // Formulario reutilizable de pauta. form/onChange controlados por el padre.
-function ScheduleForm({ form, onChange, items, lockItem = false }) {
+// onCreateItem({ name, unit }) crea un medicamento nuevo en el inventario y
+// devuelve el item creado (para ligar la pauta sin haberlo comprado aún).
+function ScheduleForm({ form, onChange, items, lockItem = false, onCreateItem }) {
   const update = (patch) => onChange({ ...form, ...patch });
   const selectedItem = items.find((it) => it.id === form.itemId);
+
+  const [newName, setNewName] = useState("");
+  const [newUnit, setNewUnit] = useState("tabletas");
+  const [creating, setCreating] = useState(false);
+  const [createErr, setCreateErr] = useState(null);
+  const creatingNew = form.itemId === "__new__";
+
+  async function handleCreate() {
+    if (!newName.trim()) { setCreateErr("Escribe el nombre del medicamento."); return; }
+    setCreating(true); setCreateErr(null);
+    try {
+      const item = await onCreateItem({ name: newName, unit: newUnit });
+      update({ itemId: item.id });
+      setNewName("");
+    } catch (e) {
+      setCreateErr(e.message || "Error al crear el medicamento");
+    } finally {
+      setCreating(false);
+    }
+  }
 
   return (
     <div>
@@ -176,8 +211,42 @@ function ScheduleForm({ form, onChange, items, lockItem = false }) {
                 {it.name}
               </option>
             ))}
+            {onCreateItem && <option value="__new__">➕ Crear nuevo medicamento…</option>}
           </select>
         </Field>
+      )}
+
+      {creatingNew && onCreateItem && (
+        <div style={{ border: `1px dashed ${bd}`, borderRadius: 10, padding: 12, marginBottom: 14 }}>
+          <div style={{ fontSize: 12, color: mu, marginBottom: 10 }}>
+            Nuevo medicamento (se agrega al inventario con stock 0).
+          </div>
+          <Field label="Nombre">
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Ej. Metformina 850 mg"
+              style={inputSt}
+            />
+          </Field>
+          <Field label="Unidad">
+            <select value={newUnit} onChange={(e) => setNewUnit(e.target.value)} style={inputSt}>
+              {UNITS.map((u) => (
+                <option key={u} value={u}>{u}</option>
+              ))}
+            </select>
+          </Field>
+          {createErr && <div style={{ color: rd, fontSize: 13, marginBottom: 10 }}>{createErr}</div>}
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={creating}
+            style={{ background: G, color: wh, border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%", opacity: creating ? 0.6 : 1 }}
+          >
+            {creating ? "Creando…" : "Crear medicamento"}
+          </button>
+        </div>
       )}
 
       <Field label={`Dosis por toma${selectedItem ? ` (${selectedItem.unit})` : ""}`}>
@@ -413,7 +482,7 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
   });
 
   const { groups, activeGroup, myRole, loading: groupLoading, selectGroup } = useFamily(userId);
-  const { items: invItems } = useInventory(activeGroup?.id);
+  const { items: invItems, addItem } = useInventory(activeGroup?.id);
   const {
     schedules,
     consultations,
@@ -462,8 +531,21 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
     [schedules, today]
   );
 
+  // Crea un medicamento en el inventario sin stock (aún no comprado). El
+  // consumption_per_day se ajustará después al guardar la pauta (recalc).
+  async function createInventoryItem({ name, unit }) {
+    return addItem({
+      name,
+      unit,
+      consumptionPerDay: 1,
+      currentQuantity: 0,
+      alertThresholdDays: 14,
+      createdBy: userId,
+    });
+  }
+
   function validateForm(f) {
-    if (!f.itemId) return "Selecciona un medicamento.";
+    if (!f.itemId || f.itemId === "__new__") return "Selecciona o crea un medicamento.";
     if (!f.dose || Number(f.dose) <= 0) return "Indica la dosis por toma.";
     if (f.frequencyType === "days_of_week" && f.daysOfWeek.length === 0)
       return "Selecciona al menos un día.";
@@ -879,19 +961,11 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
       {/* Sheet: nueva pauta */}
       {showAddSchedule && (
         <Sheet onClose={() => setShowAddSchedule(false)} title="Nueva pauta" swipeToClose>
-          {invItems.length === 0 ? (
-            <div style={{ fontSize: 14, color: mu }}>
-              No hay medicamentos en el inventario. Agrega uno en Presupuesto → Inventario primero.
-            </div>
-          ) : (
-            <>
-              <ScheduleForm form={schedForm} onChange={setSchedForm} items={invItems} />
-              {err && <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>{err}</div>}
-              <button onClick={handleAddSchedule} disabled={busy} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>
-                {busy ? "Guardando…" : "Guardar pauta"}
-              </button>
-            </>
-          )}
+          <ScheduleForm form={schedForm} onChange={setSchedForm} items={invItems} onCreateItem={createInventoryItem} />
+          {err && <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>{err}</div>}
+          <button onClick={handleAddSchedule} disabled={busy} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>
+            {busy ? "Guardando…" : "Guardar pauta"}
+          </button>
         </Sheet>
       )}
 
@@ -1036,13 +1110,13 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
                   form={ns.form}
                   onChange={(form) => setNewScheds((prev) => prev.map((p, j) => (j === idx ? { form } : p)))}
                   items={invItems}
+                  onCreateItem={createInventoryItem}
                 />
               </div>
             ))}
             <button
               onClick={() => setNewScheds((prev) => [...prev, { form: emptyScheduleForm(consHeader.consultationDate) }])}
-              disabled={invItems.length === 0}
-              style={{ background: "none", border: `1px dashed ${bd}`, borderRadius: 8, padding: "10px", color: mu, cursor: "pointer", fontSize: 13, width: "100%", opacity: invItems.length === 0 ? 0.5 : 1 }}
+              style={{ background: "none", border: `1px dashed ${bd}`, borderRadius: 8, padding: "10px", color: mu, cursor: "pointer", fontSize: 13, width: "100%" }}
             >
               + Agregar pauta nueva
             </button>

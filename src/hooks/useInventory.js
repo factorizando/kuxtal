@@ -102,6 +102,7 @@ export function useInventory(groupId) {
       }
     }
     await fetchItems();
+    return data;
   }
 
   async function deleteItem(id) {
