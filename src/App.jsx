@@ -6,6 +6,7 @@ import MainApp from "./pages/MainApp";
 import FamilyScreen from "./pages/FamilyScreen";
 import ProfileScreen from "./pages/ProfileScreen";
 import BudgetScreen from "./pages/BudgetScreen";
+import MedsScreen from "./pages/MedsScreen";
 import ReportScreen from "./pages/ReportScreen";
 
 const G = "#059669",
@@ -31,7 +32,7 @@ export default function App() {
     exitToastTimerRef.current = setTimeout(() => setExitToast(false), 2000);
   }
 
-  const SCREENS = ["app", "family", "budget", "report"];
+  const SCREENS = ["app", "meds", "family", "budget", "report"];
   function handleSwipeScreen(direction) {
     setScreen((cur) => {
       const i = SCREENS.indexOf(cur);
@@ -187,6 +188,7 @@ export default function App() {
             onSwipeScreen={handleSwipeScreen}
           />
         )}
+        {screen === "meds" && <MedsScreen userId={user.id} onSwipeScreen={handleSwipeScreen} />}
         {screen === "budget" && <BudgetScreen userId={user.id} onSwipeScreen={handleSwipeScreen} />}
         {screen === "report" && (
           <ReportScreen
@@ -238,6 +240,7 @@ export default function App() {
       >
         {[
           ["app", "📊", "Salud"],
+          ["meds", "💊", "Meds"],
           ["family", "👨‍👩‍👧", "Familia"],
           ["budget", "💰", "Presupuesto"],
           ["report", "📋", "Informe"],
