@@ -68,6 +68,30 @@ function fmtDate(str) {
   });
 }
 
+// Suma n días a una fecha "YYYY-MM-DD" (en local) y devuelve "YYYY-MM-DD".
+function addDaysStr(startStr, n) {
+  const [y, m, d] = startStr.split("-").map(Number);
+  const dt = new Date(y, m - 1, d + n);
+  const p = (x) => String(x).padStart(2, "0");
+  return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
+}
+
+// Días inclusivos entre dos fechas "YYYY-MM-DD" (ambos extremos cuentan).
+function durationBetween(startStr, endStr) {
+  const [ys, ms, ds] = startStr.split("-").map(Number);
+  const [ye, me, de] = endStr.split("-").map(Number);
+  const a = new Date(ys, ms - 1, ds);
+  const b = new Date(ye, me - 1, de);
+  return Math.round((b - a) / 86400000) + 1;
+}
+
+// Deriva end_date a partir de durationDays (vacío = indefinido).
+function formWithEndDate(f) {
+  const days = parseInt(f.durationDays, 10);
+  const endDate = days && days > 0 ? addDaysStr(f.startDate, days - 1) : null;
+  return { ...f, endDate };
+}
+
 function fmtDose(dose, unit) {
   const n = Number(dose);
   const txt = Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
@@ -114,6 +138,7 @@ function emptyScheduleForm(startDate) {
     daysOfWeek: [],
     times: ["08:00"],
     startDate: startDate || todayStr(),
+    durationDays: "",
     notes: "",
   };
 }
@@ -128,6 +153,7 @@ function scheduleToForm(s) {
     daysOfWeek: s.days_of_week || [],
     times: (s.times || []).length ? [...s.times] : ["08:00"],
     startDate: s.start_date,
+    durationDays: s.end_date ? String(durationBetween(s.start_date, s.end_date)) : "",
     notes: s.notes || "",
   };
 }
@@ -337,6 +363,23 @@ function ScheduleForm({ form, onChange, items, lockItem = false, onCreateItem })
           onChange={(e) => update({ startDate: e.target.value })}
           style={inputSt}
         />
+      </Field>
+
+      <Field label="Duración (días)">
+        <input
+          type="number"
+          inputMode="numeric"
+          min="1"
+          value={form.durationDays}
+          onChange={(e) => update({ durationDays: e.target.value })}
+          placeholder="Indefinido"
+          style={inputSt}
+        />
+        {form.durationDays && Number(form.durationDays) >= 1 && form.startDate && (
+          <div style={{ fontSize: 12, color: mu, marginTop: 4 }}>
+            Termina el {fmtDate(addDaysStr(form.startDate, Number(form.durationDays) - 1))}
+          </div>
+        )}
       </Field>
 
       <Field label="Notas (opcional)">
@@ -554,6 +597,8 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
       return "Agrega al menos un horario.";
     if (f.frequencyType === "every_n_days" && (!f.intervalDays || Number(f.intervalDays) < 1))
       return "Indica el intervalo de días.";
+    if (f.durationDays && (!Number.isInteger(Number(f.durationDays)) || Number(f.durationDays) < 1))
+      return "La duración debe ser un número de días válido.";
     return null;
   }
 
@@ -568,7 +613,7 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
     if (v) { setErr(v); return; }
     setBusy(true); setErr(null);
     try {
-      await addSchedule(schedForm);
+      await addSchedule(formWithEndDate(schedForm));
       setShowAddSchedule(false);
     } catch (e) {
       setErr(e.message || "Error al guardar la pauta");
@@ -589,7 +634,7 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
     if (v) { setErr(v); return; }
     setBusy(true); setErr(null);
     try {
-      await updateSchedule(editSchedule.id, schedForm);
+      await updateSchedule(editSchedule.id, formWithEndDate(schedForm));
       setEditSchedule(null);
     } catch (e) {
       setErr(e.message || "Error al actualizar");
@@ -937,6 +982,12 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
               <div><b>Horarios:</b> {scheduleDetail.times.join(" · ")}</div>
             )}
             <div><b>Desde:</b> {fmtDate(scheduleDetail.start_date)}</div>
+            {scheduleDetail.end_date && (
+              <div>
+                <b>Hasta:</b> {fmtDate(scheduleDetail.end_date)}
+                {" "}({durationBetween(scheduleDetail.start_date, scheduleDetail.end_date)} días)
+              </div>
+            )}
             {scheduleDetail.notes && <div><b>Notas:</b> {scheduleDetail.notes}</div>}
           </div>
           {canEdit && (
