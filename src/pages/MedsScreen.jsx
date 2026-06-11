@@ -196,84 +196,349 @@ function TimesEditor({ times, onChange }) {
   );
 }
 
+// Selector de foto (cámara / galería) con vista previa. Devuelve el File y
+// una object-URL para mostrar la miniatura.
+function PhotoPicker({ id, preview, onFile, onClear }) {
+  function pick(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    onFile(file, URL.createObjectURL(file));
+    e.target.value = "";
+  }
+  const btnSt = {
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    padding: "10px 0",
+    border: `1.5px dashed ${bd}`,
+    borderRadius: 8,
+    cursor: "pointer",
+    color: mu,
+    fontSize: 13,
+    background: "#FAFAFA",
+  };
+  return preview ? (
+    <div>
+      <img
+        src={preview}
+        alt=""
+        style={{ maxHeight: 130, maxWidth: "100%", borderRadius: 6, objectFit: "contain", display: "block" }}
+      />
+      <button
+        type="button"
+        onClick={onClear}
+        style={{ background: "none", border: "none", color: rd, fontSize: 12, cursor: "pointer", marginTop: 4, padding: 0 }}
+      >
+        Quitar foto
+      </button>
+    </div>
+  ) : (
+    <div style={{ display: "flex", gap: 8 }}>
+      <label htmlFor={`${id}-cam`} style={btnSt}>
+        📷 Cámara
+        <input id={`${id}-cam`} type="file" accept="image/*" capture="environment" onChange={pick} style={{ display: "none" }} />
+      </label>
+      <label htmlFor={`${id}-gal`} style={btnSt}>
+        🖼 Galería
+        <input id={`${id}-gal`} type="file" accept="image/*" onChange={pick} style={{ display: "none" }} />
+      </label>
+    </div>
+  );
+}
+
+// Botón con estilo de input que abre un selector (muestra el valor y un chevron).
+function PickerButton({ value, placeholder, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        ...inputSt,
+        textAlign: "left",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}
+    >
+      <span style={{ color: value ? "#111827" : mu }}>{value || placeholder}</span>
+      <span style={{ color: mu, fontSize: 13 }}>›</span>
+    </button>
+  );
+}
+
+// Bottom-sheet de opciones simples (lista de strings con check en la activa).
+function OptionSheet({ title, options, value, onSelect, onClose }) {
+  return (
+    <Sheet onClose={onClose} title={title}>
+      <div style={{ margin: "-8px -24px 0" }}>
+        {options.map((o) => (
+          <button
+            key={o}
+            type="button"
+            onClick={() => { onSelect(o); onClose(); }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              width: "100%",
+              padding: "15px 24px",
+              border: "none",
+              borderTop: `1px solid ${bd}`,
+              background: value === o ? `${G}0D` : "none",
+              color: value === o ? G : "#111827",
+              fontSize: 15,
+              fontWeight: value === o ? 600 : 400,
+              cursor: "pointer",
+              textAlign: "left",
+              boxSizing: "border-box",
+            }}
+          >
+            {o}
+            {value === o && <span style={{ color: G, fontSize: 16 }}>✓</span>}
+          </button>
+        ))}
+      </div>
+    </Sheet>
+  );
+}
+
+// Formulario completo para crear un medicamento nuevo (se agrega al inventario).
+// onCreate(payload) recibe todos los campos; el consumo diario se deriva luego
+// de la pauta, por eso no se pide aquí.
+function NewMedForm({ onCreate, onCancel }) {
+  const [name, setName] = useState("");
+  const [unit, setUnit] = useState("tabletas");
+  const [unitsPerPack, setUnitsPerPack] = useState("");
+  const [qty, setQty] = useState("");
+  const [alertDays, setAlertDays] = useState("14");
+  const [notes, setNotes] = useState("");
+  const [imgFile, setImgFile] = useState(null);
+  const [imgPreview, setImgPreview] = useState(null);
+  const [unitSheet, setUnitSheet] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function handleSave() {
+    if (!name.trim()) { setErr("Escribe el nombre del medicamento."); return; }
+    if (unitsPerPack && parseInt(unitsPerPack, 10) < 2) {
+      setErr("La presentación debe tener al menos 2 unidades."); return;
+    }
+    setSaving(true); setErr(null);
+    try {
+      await onCreate({
+        name,
+        unit,
+        unitsPerPack: unitsPerPack ? parseInt(unitsPerPack, 10) : null,
+        currentQuantity: qty ? parseFloat(qty) : 0,
+        alertThresholdDays: alertDays ? parseInt(alertDays, 10) : 14,
+        notes,
+        file: imgFile,
+      });
+    } catch (e) {
+      setErr(e.message || "Error al crear el medicamento");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <Field label="Nombre">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Ej. Metformina 850 mg"
+          style={inputSt}
+        />
+      </Field>
+      <Field label="Unidad">
+        <PickerButton value={unit} onClick={() => setUnitSheet(true)} />
+      </Field>
+      <Field label={`${unit.charAt(0).toUpperCase() + unit.slice(1)} por presentación (opcional)`}>
+        <input
+          type="number"
+          inputMode="numeric"
+          min="2"
+          step="1"
+          value={unitsPerPack}
+          onChange={(e) => setUnitsPerPack(e.target.value)}
+          placeholder={`ej. 30 si la caja trae 30 ${unit}`}
+          style={inputSt}
+        />
+      </Field>
+      <Field label={`Cantidad actual (${unit}, opcional)`}>
+        <input
+          type="number"
+          inputMode="decimal"
+          min="0"
+          step="1"
+          value={qty}
+          onChange={(e) => setQty(e.target.value)}
+          placeholder="¿Cuántos tienes ahora?"
+          style={inputSt}
+        />
+      </Field>
+      <Field label="Alertar cuando queden (días)">
+        <input
+          type="number"
+          inputMode="numeric"
+          min="1"
+          max="90"
+          step="1"
+          value={alertDays}
+          onChange={(e) => setAlertDays(e.target.value)}
+          style={inputSt}
+        />
+      </Field>
+      <Field label="Notas (opcional)">
+        <input
+          type="text"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Ej. con alimentos"
+          style={inputSt}
+        />
+      </Field>
+      <Field label="Foto del producto (opcional)">
+        <PhotoPicker
+          id="new-med-img"
+          preview={imgPreview}
+          onFile={(file, url) => { setImgFile(file); setImgPreview(url); }}
+          onClear={() => { setImgFile(null); setImgPreview(null); }}
+        />
+      </Field>
+      {err && <div style={{ color: rd, fontSize: 13, marginBottom: 10 }}>{err}</div>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          type="button"
+          onClick={onCancel}
+          style={{ flex: "0 0 auto", padding: "12px 16px", background: wh, color: mu, border: `1px solid ${bd}`, borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: "pointer" }}
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          style={{ flex: 1, padding: "12px 0", background: G, color: wh, border: "none", borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.6 : 1 }}
+        >
+          {saving ? "Creando…" : "Crear medicamento"}
+        </button>
+      </div>
+      {unitSheet && (
+        <OptionSheet
+          title="Unidad de medida"
+          options={UNITS}
+          value={unit}
+          onSelect={setUnit}
+          onClose={() => setUnitSheet(false)}
+        />
+      )}
+    </>
+  );
+}
+
 // Formulario reutilizable de pauta. form/onChange controlados por el padre.
-// onCreateItem({ name, unit }) crea un medicamento nuevo en el inventario y
-// devuelve el item creado (para ligar la pauta sin haberlo comprado aún).
+// onCreateItem(payload) crea un medicamento nuevo en el inventario y devuelve
+// el item creado (para ligar la pauta sin haberlo comprado aún).
 function ScheduleForm({ form, onChange, items, lockItem = false, onCreateItem }) {
   const update = (patch) => onChange({ ...form, ...patch });
   const selectedItem = items.find((it) => it.id === form.itemId);
 
-  const [newName, setNewName] = useState("");
-  const [newUnit, setNewUnit] = useState("tabletas");
-  const [creating, setCreating] = useState(false);
-  const [createErr, setCreateErr] = useState(null);
-  const creatingNew = form.itemId === "__new__";
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
-  async function handleCreate() {
-    if (!newName.trim()) { setCreateErr("Escribe el nombre del medicamento."); return; }
-    setCreating(true); setCreateErr(null);
-    try {
-      const item = await onCreateItem({ name: newName, unit: newUnit });
-      update({ itemId: item.id });
-      setNewName("");
-    } catch (e) {
-      setCreateErr(e.message || "Error al crear el medicamento");
-    } finally {
-      setCreating(false);
-    }
+  async function handleCreate(payload) {
+    const item = await onCreateItem(payload);
+    update({ itemId: item.id });
+    setCreateOpen(false);
+    setPickerOpen(false);
   }
 
   return (
     <div>
       {!lockItem && (
         <Field label="Medicamento">
-          <select
-            value={form.itemId}
-            onChange={(e) => update({ itemId: e.target.value })}
-            style={inputSt}
-          >
-            <option value="">Selecciona…</option>
-            {items.map((it) => (
-              <option key={it.id} value={it.id}>
-                {it.name}
-              </option>
-            ))}
-            {onCreateItem && <option value="__new__">➕ Crear nuevo medicamento…</option>}
-          </select>
+          <PickerButton
+            value={selectedItem?.name}
+            placeholder="Selecciona…"
+            onClick={() => setPickerOpen(true)}
+          />
         </Field>
       )}
 
-      {creatingNew && onCreateItem && (
-        <div style={{ border: `1px dashed ${bd}`, borderRadius: 10, padding: 12, marginBottom: 14 }}>
-          <div style={{ fontSize: 12, color: mu, marginBottom: 10 }}>
-            Nuevo medicamento (se agrega al inventario con stock 0).
+      {pickerOpen && !lockItem && (
+        <Sheet onClose={() => setPickerOpen(false)} title="Elegir medicamento">
+          <div style={{ margin: "-8px -24px 0" }}>
+            {items.length === 0 && (
+              <div style={{ padding: "12px 24px", fontSize: 14, color: mu }}>
+                Aún no hay medicamentos. Crea uno nuevo.
+              </div>
+            )}
+            {items.map((it) => (
+              <button
+                key={it.id}
+                type="button"
+                onClick={() => { update({ itemId: it.id }); setPickerOpen(false); }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  padding: "15px 24px",
+                  border: "none",
+                  borderTop: `1px solid ${bd}`,
+                  background: form.itemId === it.id ? `${G}0D` : "none",
+                  color: form.itemId === it.id ? G : "#111827",
+                  fontSize: 15,
+                  fontWeight: form.itemId === it.id ? 600 : 400,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  boxSizing: "border-box",
+                }}
+              >
+                {it.name}
+                {form.itemId === it.id && <span style={{ color: G, fontSize: 16 }}>✓</span>}
+              </button>
+            ))}
+            {onCreateItem && (
+              <button
+                type="button"
+                onClick={() => { setPickerOpen(false); setCreateOpen(true); }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                  padding: "15px 24px",
+                  border: "none",
+                  borderTop: `1px solid ${bd}`,
+                  background: "none",
+                  color: G,
+                  fontSize: 15,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  boxSizing: "border-box",
+                }}
+              >
+                ➕ Crear nuevo medicamento…
+              </button>
+            )}
           </div>
-          <Field label="Nombre">
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Ej. Metformina 850 mg"
-              style={inputSt}
-            />
-          </Field>
-          <Field label="Unidad">
-            <select value={newUnit} onChange={(e) => setNewUnit(e.target.value)} style={inputSt}>
-              {UNITS.map((u) => (
-                <option key={u} value={u}>{u}</option>
-              ))}
-            </select>
-          </Field>
-          {createErr && <div style={{ color: rd, fontSize: 13, marginBottom: 10 }}>{createErr}</div>}
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={creating}
-            style={{ background: G, color: wh, border: "none", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%", opacity: creating ? 0.6 : 1 }}
-          >
-            {creating ? "Creando…" : "Crear medicamento"}
-          </button>
-        </div>
+        </Sheet>
+      )}
+
+      {createOpen && onCreateItem && (
+        <Sheet onClose={() => setCreateOpen(false)} title="Nuevo medicamento">
+          <div style={{ fontSize: 12, color: mu, marginBottom: 14 }}>
+            Se agrega al inventario. El consumo diario se calcula a partir de la pauta.
+          </div>
+          <NewMedForm onCreate={handleCreate} onCancel={() => setCreateOpen(false)} />
+        </Sheet>
       )}
 
       <Field label={`Dosis por toma${selectedItem ? ` (${selectedItem.unit})` : ""}`}>
@@ -575,21 +840,24 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
     [schedules, today]
   );
 
-  // Crea un medicamento en el inventario sin stock (aún no comprado). El
-  // consumption_per_day se ajustará después al guardar la pauta (recalc).
-  async function createInventoryItem({ name, unit }) {
+  // Crea un medicamento en el inventario. El consumption_per_day se ajustará
+  // después al guardar la pauta (recalc), por eso entra como 1 por defecto.
+  async function createInventoryItem({ name, unit, unitsPerPack, currentQuantity, alertThresholdDays, notes, file }) {
     return addItem({
       name,
       unit,
       consumptionPerDay: 1,
-      currentQuantity: 0,
-      alertThresholdDays: 14,
+      currentQuantity: currentQuantity ?? 0,
+      alertThresholdDays: alertThresholdDays ?? 14,
+      unitsPerPack: unitsPerPack ?? null,
+      notes,
+      file,
       createdBy: userId,
     });
   }
 
   function validateForm(f) {
-    if (!f.itemId || f.itemId === "__new__") return "Selecciona o crea un medicamento.";
+    if (!f.itemId) return "Selecciona o crea un medicamento.";
     if (!f.dose || Number(f.dose) <= 0) return "Indica la dosis por toma.";
     if (f.frequencyType === "days_of_week" && f.daysOfWeek.length === 0)
       return "Selecciona al menos un día.";
