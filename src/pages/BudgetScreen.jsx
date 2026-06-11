@@ -46,6 +46,7 @@ const STORES = [
 const UNITS = [
   "tabletas",
   "cápsulas",
+  "sobres",
   "mL",
   "unidades",
   "tiras",

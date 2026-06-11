@@ -23,6 +23,7 @@ const G = "#059669",
 const UNITS = [
   "tabletas",
   "cápsulas",
+  "sobres",
   "mL",
   "unidades",
   "tiras",
