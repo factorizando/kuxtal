@@ -1109,6 +1109,10 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
     ? schedules.filter((s) => s.consultation_id === consultDetail.id)
     : [];
 
+  const editConsultScheds = editConsult
+    ? schedules.filter((s) => s.consultation_id === editConsult.id)
+    : [];
+
   return (
     <div
       {...swipeHandlers}
@@ -1355,17 +1359,6 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
         </Sheet>
       )}
 
-      {/* Sheet: editar pauta */}
-      {editSchedule && (
-        <Sheet onClose={() => setEditSchedule(null)} title="Editar pauta" swipeToClose>
-          <ScheduleForm form={schedForm} onChange={setSchedForm} items={invItems} lockItem />
-          {err && <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>{err}</div>}
-          <button onClick={handleUpdateSchedule} disabled={busy} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>
-            {busy ? "Guardando…" : "Guardar cambios"}
-          </button>
-        </Sheet>
-      )}
-
       {/* Sheet: detalle de consulta */}
       {consultDetail && (
         <Sheet onClose={() => setConsultDetail(null)} title="Consulta médica" swipeToClose>
@@ -1439,8 +1432,58 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
               style={{ ...inputSt, resize: "vertical" }}
             />
           </Field>
+
+          {editConsultScheds.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: mu, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>
+                Pautas indicadas
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {editConsultScheds.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => openEditSchedule(s)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      width: "100%",
+                      textAlign: "left",
+                      background: "#FAFAFA",
+                      border: `1px solid ${bd}`,
+                      borderRadius: 10,
+                      padding: "12px",
+                      cursor: "pointer",
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  >
+                    <span style={{ fontSize: 14, color: "#111827" }}>
+                      {s.inventory_item?.name}: {fmtDose(s.dose, s.inventory_item?.unit)} · {frequencyLabel(s)}
+                      {s.active ? "" : " (suspendida)"}
+                    </span>
+                    <span style={{ color: mu, fontSize: 13, whiteSpace: "nowrap" }}>Editar ›</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {err && <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>{err}</div>}
           <button onClick={handleUpdateConsult} disabled={busy} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>
+            {busy ? "Guardando…" : "Guardar cambios"}
+          </button>
+        </Sheet>
+      )}
+
+      {/* Sheet: editar pauta (después de editar-consulta para que quede encima
+          cuando se abre desde ahí) */}
+      {editSchedule && (
+        <Sheet onClose={() => setEditSchedule(null)} title="Editar pauta" swipeToClose>
+          <ScheduleForm form={schedForm} onChange={setSchedForm} items={invItems} lockItem />
+          {err && <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>{err}</div>}
+          <button onClick={handleUpdateSchedule} disabled={busy} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>
             {busy ? "Guardando…" : "Guardar cambios"}
           </button>
         </Sheet>
