@@ -321,5 +321,101 @@ export function useInventory(groupId) {
     await fetchItems();
   }
 
-  return { items, loading, addItem, updateItem, deleteItem, adjustQuantity, restock, fetchRestocks, fetchAdjustments, getRestockForEntry, deleteRestockAndRevertStock, updateRestockAndAdjustStock, refetch: fetchItems };
+  // Reabastecer varios artículos en una sola compra: crea UN movimiento de
+  // presupuesto con el total y N reabastecimientos vinculados a ese movimiento.
+  // `lines`: [{ itemId, quantity, price }]
+  async function restockBatch({ lines, store, purchasedAt, notes, recordedBy, createBudgetEntry, file }) {
+    if (!lines || lines.length === 0) throw new Error("Agrega al menos un artículo");
+    const totalPrice = lines.reduce((s, l) => s + (l.price || 0), 0);
+
+    // Crear el movimiento único de presupuesto con el total de la compra
+    let budgetEntryId = null;
+    if (createBudgetEntry && totalPrice > 0) {
+      const names = lines
+        .map((l) => items.find((i) => i.id === l.itemId)?.name)
+        .filter(Boolean);
+      const noteParts = [names.join(", "), store?.trim()].filter(Boolean);
+      const { data: budgetData, error: budgetErr } = await supabase
+        .from("budget_entries")
+        .insert({
+          group_id: groupId,
+          recorded_by: recordedBy,
+          type: "expense",
+          amount: totalPrice,
+          category: "Medicamentos",
+          note: noteParts.join(" · "),
+          entry_date: purchasedAt,
+        })
+        .select()
+        .single();
+      if (budgetErr) throw budgetErr;
+      budgetEntryId = budgetData.id;
+
+      // Comprobante fotográfico en el movimiento (mismo path que useBudget,
+      // para que deleteEntry lo limpie correctamente)
+      if (file) {
+        try {
+          const compressed = await compressImage(file);
+          const path = `${groupId}/${budgetEntryId}.jpg`;
+          const { error: uploadErr } = await supabase.storage
+            .from("receipts")
+            .upload(path, compressed, { upsert: true, contentType: "image/jpeg" });
+          if (!uploadErr) {
+            const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(path);
+            await supabase.from("budget_entries").update({ receipt_url: urlData.publicUrl }).eq("id", budgetEntryId);
+          }
+        } catch (e) {
+          console.error("restock batch receipt upload error:", e);
+        }
+      }
+    }
+
+    // Por cada artículo: registrar el reabastecimiento y ajustar su stock
+    for (const line of lines) {
+      const item = items.find((i) => i.id === line.itemId);
+      if (!item) continue;
+      const purchasedAtTs = new Date(purchasedAt + "T12:00:00").getTime();
+      const lastUpdateTs = new Date(item.quantity_updated_at).getTime();
+      const effectiveTs = Math.max(lastUpdateTs, Math.min(purchasedAtTs, Date.now()));
+      const elapsedToEffective = (effectiveTs - lastUpdateTs) / 86400000;
+      const stockAtEffective = Math.max(0, item.current_quantity - item.consumption_per_day * elapsedToEffective);
+      const newQuantity = stockAtEffective + line.quantity;
+      const newUpdatedAt = new Date(effectiveTs).toISOString();
+
+      const { error: restockErr } = await supabase.from("inventory_restocks").insert({
+        item_id: line.itemId,
+        group_id: groupId,
+        recorded_by: recordedBy,
+        quantity: line.quantity,
+        price: line.price > 0 ? line.price : null,
+        brand: null,
+        store: store?.trim() || null,
+        purchased_at: purchasedAt,
+        budget_entry_id: budgetEntryId,
+        notes: notes?.trim() || null,
+      });
+      if (restockErr) throw restockErr;
+
+      const { error: updateErr } = await supabase
+        .from("inventory_items")
+        .update({ current_quantity: newQuantity, quantity_updated_at: newUpdatedAt })
+        .eq("id", line.itemId);
+      if (updateErr) throw updateErr;
+    }
+
+    await fetchItems();
+  }
+
+  // Devuelve TODOS los reabastecimientos vinculados a un movimiento (una compra
+  // de varios artículos comparte budget_entry_id entre varios restocks).
+  async function getRestocksForEntry(budgetEntryId) {
+    const { data, error } = await supabase
+      .from("inventory_restocks")
+      .select("*")
+      .eq("budget_entry_id", budgetEntryId);
+    if (error) throw error;
+    return data || [];
+  }
+
+  return { items, loading, addItem, updateItem, deleteItem, adjustQuantity, restock, restockBatch, fetchRestocks, fetchAdjustments, getRestockForEntry, getRestocksForEntry, deleteRestockAndRevertStock, updateRestockAndAdjustStock, refetch: fetchItems };
 }

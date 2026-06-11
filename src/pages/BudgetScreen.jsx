@@ -120,6 +120,91 @@ function Field({ label, children }) {
   );
 }
 
+function PurchaseLine({ item, line, onChange, onRemove }) {
+  const hasPack = !!item.units_per_pack;
+  const computedQty = hasPack
+    ? (parseInt(line.boxes) || 0) * item.units_per_pack
+    : parseFloat(line.quantity) || 0;
+  return (
+    <div
+      style={{
+        background: "#F9FAFB",
+        border: `1px solid ${bd}`,
+        borderRadius: 10,
+        padding: "10px 12px",
+        marginBottom: 8,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 8,
+        }}
+      >
+        <span style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>
+          {item.name}
+        </span>
+        <button
+          onClick={onRemove}
+          style={{
+            background: "none",
+            border: "none",
+            color: mu,
+            fontSize: 20,
+            cursor: "pointer",
+            lineHeight: 1,
+            padding: 0,
+          }}
+        >
+          ×
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        {hasPack ? (
+          <input
+            type="number"
+            inputMode="numeric"
+            placeholder="Cajas"
+            value={line.boxes}
+            onChange={(e) => onChange({ ...line, boxes: e.target.value })}
+            min="1"
+            step="1"
+            style={{ ...inputSt, flex: 1 }}
+          />
+        ) : (
+          <input
+            type="number"
+            inputMode="decimal"
+            placeholder={`Cantidad (${item.unit})`}
+            value={line.quantity}
+            onChange={(e) => onChange({ ...line, quantity: e.target.value })}
+            min="0.01"
+            step="1"
+            style={{ ...inputSt, flex: 1 }}
+          />
+        )}
+        <input
+          type="number"
+          inputMode="decimal"
+          placeholder="Precio $"
+          value={line.price}
+          onChange={(e) => onChange({ ...line, price: e.target.value })}
+          min="0"
+          step="0.01"
+          style={{ ...inputSt, flex: 1 }}
+        />
+      </div>
+      {hasPack && computedQty > 0 && (
+        <div style={{ fontSize: 12, color: G, fontWeight: 600, marginTop: 6 }}>
+          = {computedQty} {item.unit}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SummaryCard({ label, value, color, bold }) {
   return (
     <div style={{ textAlign: "center" }}>
@@ -546,8 +631,9 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     deleteItem,
     adjustQuantity,
     restock,
+    restockBatch,
     fetchRestocks,
-    getRestockForEntry,
+    getRestocksForEntry,
     deleteRestockAndRevertStock,
     updateRestockAndAdjustStock,
   } = useInventory(activeGroup?.id);
@@ -648,6 +734,20 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [adjQuantity, setAdjQuantity] = useState("");
   const [adjSaving, setAdjSaving] = useState(false);
   const [adjError, setAdjError] = useState(null);
+
+  // ── Compra de varios artículos (carrito) state ────────────
+  const [showPurchase, setShowPurchase] = useState(false);
+  const [purchaseLines, setPurchaseLines] = useState([]); // [{ itemId, boxes, quantity, price }]
+  const [pStore, setPStore] = useState("");
+  const [pDate, setPDate] = useState(todayStr());
+  const [pNotes, setPNotes] = useState("");
+  const [pCreateBudget, setPCreateBudget] = useState(true);
+  const [pFile, setPFile] = useState(null);
+  const [pFilePreview, setPFilePreview] = useState(null);
+  const [pSaving, setPSaving] = useState(false);
+  const [purchaseError, setPurchaseError] = useState(null);
+  const [showPItemSheet, setShowPItemSheet] = useState(false);
+  const [showPStoreSheet, setShowPStoreSheet] = useState(false);
 
   // ── Solicitudes state ─────────────────────────────────────
   const [showRequestForm, setShowRequestForm] = useState(false);
@@ -785,9 +885,10 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
 
   async function handleDelete(id) {
     try {
-      const restock = await getRestockForEntry(id);
+      const restocks = await getRestocksForEntry(id);
       const entryToLog = entries.find((e) => e.id === id);
-      if (restock) {
+      if (restocks.length === 1) {
+        const restock = restocks[0];
         const item = invItems.find((i) => i.id === restock.item_id);
         const itemName = item ? item.name : "el artículo";
         const unit = item ? item.unit : "unidades";
@@ -797,9 +898,24 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
           )
         )
           return;
-        await deleteRestockAndRevertStock(restock.id, restock.item_id, restock.quantity);
+      } else if (restocks.length > 1) {
+        const resumen = restocks
+          .map((r) => {
+            const item = invItems.find((i) => i.id === r.item_id);
+            return `· ${r.quantity} ${item?.unit || "unidades"} de ${item?.name || "artículo"}`;
+          })
+          .join("\n");
+        if (
+          !window.confirm(
+            `Este movimiento es una compra de ${restocks.length} artículos.\n\nSe eliminará el movimiento, se borrará del historial de compras y se descontará de cada artículo:\n${resumen}\n\n¿Continuar?`,
+          )
+        )
+          return;
       } else {
         if (!window.confirm("¿Eliminar este movimiento?")) return;
+      }
+      for (const r of restocks) {
+        await deleteRestockAndRevertStock(r.id, r.item_id, r.quantity);
       }
       await logAction({
         entityType: "budget_entry",
@@ -811,10 +927,12 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
           category: entryToLog?.category,
           note: entryToLog?.note,
           entry_date: entryToLog?.entry_date,
-          ...(restock ? {
-            restock_quantity: restock.quantity,
-            restock_price: restock.price,
-            restock_purchased_at: restock.purchased_at,
+          ...(restocks.length === 1 ? {
+            restock_quantity: restocks[0].quantity,
+            restock_price: restocks[0].price,
+            restock_purchased_at: restocks[0].purchased_at,
+          } : restocks.length > 1 ? {
+            restock_count: restocks.length,
           } : {}),
         },
         after: null,
@@ -827,7 +945,11 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
 
   async function openEditEntry(entry) {
     try {
-      const restock = await getRestockForEntry(entry.id);
+      const restocks = await getRestocksForEntry(entry.id);
+      // Solo se permite editar la cantidad inline cuando el movimiento está
+      // vinculado a un único reabastecimiento. Para compras de varios artículos
+      // se editan solo los datos del movimiento (sin tocar el stock).
+      const restock = restocks.length === 1 ? restocks[0] : null;
       setEIsRestockLinked(!!restock);
       setERestockData(restock);
       setEQuantity(restock ? String(restock.quantity) : "");
@@ -1068,6 +1190,81 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     setRFile(null);
     setRFilePreview(null);
     setShowRestock(item);
+  }
+
+  function openPurchase() {
+    setPurchaseLines([]);
+    setPStore("");
+    setPDate(todayStr());
+    setPNotes("");
+    setPCreateBudget(true);
+    setPFile(null);
+    setPFilePreview(null);
+    setPurchaseError(null);
+    setShowPurchase(true);
+  }
+
+  function addPurchaseLine(itemId) {
+    setPurchaseLines((prev) => [...prev, { itemId, boxes: "", quantity: "", price: "" }]);
+    setShowPItemSheet(false);
+  }
+
+  function updatePurchaseLine(idx, line) {
+    setPurchaseLines((prev) => prev.map((l, i) => (i === idx ? line : l)));
+  }
+
+  function removePurchaseLine(idx) {
+    setPurchaseLines((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function handlePurchase() {
+    if (purchaseLines.length === 0) {
+      setPurchaseError("Agrega al menos un artículo");
+      return;
+    }
+    if (!pDate) {
+      setPurchaseError("Ingresa la fecha de compra");
+      return;
+    }
+    const lines = [];
+    for (const l of purchaseLines) {
+      const item = invItems.find((i) => i.id === l.itemId);
+      if (!item) continue;
+      let qty;
+      if (item.units_per_pack) {
+        const boxes = parseInt(l.boxes);
+        if (!l.boxes || isNaN(boxes) || boxes <= 0) {
+          setPurchaseError(`Ingresa el número de cajas de ${item.name}`);
+          return;
+        }
+        qty = boxes * item.units_per_pack;
+      } else {
+        qty = parseFloat(l.quantity);
+        if (!l.quantity || isNaN(qty) || qty <= 0) {
+          setPurchaseError(`Ingresa la cantidad de ${item.name}`);
+          return;
+        }
+      }
+      lines.push({ itemId: l.itemId, quantity: qty, price: parseFloat(l.price) || 0 });
+    }
+    setPSaving(true);
+    setPurchaseError(null);
+    try {
+      await restockBatch({
+        lines,
+        store: pStore,
+        purchasedAt: pDate,
+        notes: pNotes,
+        recordedBy: userId,
+        createBudgetEntry: pCreateBudget,
+        file: pFile || null,
+      });
+      setShowPurchase(false);
+    } catch (e) {
+      setPurchaseError(e.message || "Error al registrar la compra");
+    } finally {
+      setPSaving(false);
+    }
   }
 
   async function handleRestock() {
@@ -1642,27 +1839,52 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
           )}
 
           {canEdit && (
-            <button
-              onClick={openAddItem}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                background: "#111827",
-                color: wh,
-                border: "none",
-                borderRadius: 12,
-                padding: "14px 20px",
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: "pointer",
-                width: "100%",
-                boxShadow: "0 2px 8px rgba(0,0,0,.15)",
-              }}
-            >
-              + Agregar artículo
-            </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {invItems.length > 0 && (
+                <button
+                  onClick={openPurchase}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    background: G,
+                    color: wh,
+                    border: "none",
+                    borderRadius: 12,
+                    padding: "14px 20px",
+                    fontSize: 15,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    width: "100%",
+                    boxShadow: "0 2px 8px rgba(5,150,105,.25)",
+                  }}
+                >
+                  🛒 Registrar compra
+                </button>
+              )}
+              <button
+                onClick={openAddItem}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  background: "#111827",
+                  color: wh,
+                  border: "none",
+                  borderRadius: 12,
+                  padding: "14px 20px",
+                  fontSize: 15,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  width: "100%",
+                  boxShadow: "0 2px 8px rgba(0,0,0,.15)",
+                }}
+              >
+                + Agregar artículo
+              </button>
+            </div>
           )}
 
           {invLoading ? (
@@ -3119,6 +3341,314 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
             {rSaving ? "Guardando..." : "Confirmar reabastecimiento"}
           </button>
         </Sheet>
+      )}
+
+      {/* ── SHEET: Compra de varios artículos ── */}
+      {showPurchase && (() => {
+        const total = purchaseLines.reduce((s, l) => s + (parseFloat(l.price) || 0), 0);
+        const availableItems = invItems.filter(
+          (i) => !purchaseLines.some((l) => l.itemId === i.id),
+        );
+        return (
+          <Sheet onClose={() => setShowPurchase(false)} title="Registrar compra">
+            <Field label="Tienda">
+              <button
+                onClick={() => setShowPStoreSheet(true)}
+                style={{
+                  ...inputSt,
+                  textAlign: "left",
+                  cursor: "pointer",
+                  color: pStore ? "#111827" : "#9CA3AF",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span>{pStore || "Sin especificar"}</span>
+                <span style={{ color: mu, fontSize: 13 }}>›</span>
+              </button>
+            </Field>
+            <Field label="Fecha de compra">
+              <input
+                type="date"
+                value={pDate}
+                onChange={(e) => setPDate(e.target.value)}
+                style={inputSt}
+              />
+            </Field>
+
+            <label
+              style={{
+                display: "block",
+                fontSize: 11,
+                fontWeight: 600,
+                color: mu,
+                textTransform: "uppercase",
+                letterSpacing: 0.6,
+                marginBottom: 6,
+              }}
+            >
+              Artículos comprados
+            </label>
+            {purchaseLines.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  color: mu,
+                  fontSize: 13,
+                  padding: "16px 0",
+                  border: `1px dashed ${bd}`,
+                  borderRadius: 10,
+                  marginBottom: 10,
+                }}
+              >
+                Aún no has agregado artículos
+              </div>
+            ) : (
+              purchaseLines.map((line, idx) => {
+                const item = invItems.find((i) => i.id === line.itemId);
+                if (!item) return null;
+                return (
+                  <PurchaseLine
+                    key={line.itemId}
+                    item={item}
+                    line={line}
+                    onChange={(l) => updatePurchaseLine(idx, l)}
+                    onRemove={() => removePurchaseLine(idx)}
+                  />
+                );
+              })
+            )}
+            {availableItems.length > 0 && (
+              <button
+                onClick={() => setShowPItemSheet(true)}
+                style={{
+                  width: "100%",
+                  padding: "11px 0",
+                  background: "none",
+                  color: G,
+                  border: `1px solid ${G}`,
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  marginBottom: 16,
+                  marginTop: 4,
+                }}
+              >
+                + Agregar artículo
+              </button>
+            )}
+
+            <Field label="Notas (opcional)">
+              <input
+                type="text"
+                placeholder="..."
+                value={pNotes}
+                onChange={(e) => setPNotes(e.target.value)}
+                style={inputSt}
+              />
+            </Field>
+            <Field label="Comprobante (opcional)">
+              <PhotoPicker
+                id="purchase-receipt"
+                preview={pFilePreview}
+                onFile={(file, url) => {
+                  setPFile(file);
+                  setPFilePreview(url);
+                }}
+                onClear={() => {
+                  setPFile(null);
+                  setPFilePreview(null);
+                }}
+              />
+            </Field>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 14px",
+                background: "#F9FAFB",
+                borderRadius: 10,
+                marginBottom: 14,
+              }}
+            >
+              <span style={{ fontSize: 13, color: mu, fontWeight: 600 }}>
+                Total de la compra
+              </span>
+              <span style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>
+                {fmtCurrency(total)}
+              </span>
+            </div>
+
+            {total > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 18,
+                  padding: "12px 14px",
+                  background: "#F9FAFB",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                }}
+                onClick={() => setPCreateBudget((v) => !v)}
+              >
+                <div
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 5,
+                    border: `2px solid ${pCreateBudget ? G : bd}`,
+                    background: pCreateBudget ? G : wh,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  {pCreateBudget && (
+                    <span style={{ color: wh, fontSize: 13, lineHeight: 1 }}>✓</span>
+                  )}
+                </div>
+                <span style={{ fontSize: 14, color: "#111827" }}>
+                  Registrar como un gasto en presupuesto
+                </span>
+              </div>
+            )}
+            {purchaseError && (
+              <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>
+                {purchaseError}
+              </div>
+            )}
+            <button
+              onClick={handlePurchase}
+              disabled={pSaving}
+              style={{
+                width: "100%",
+                padding: "14px 0",
+                background: G,
+                color: wh,
+                border: "none",
+                borderRadius: 10,
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: pSaving ? "not-allowed" : "pointer",
+                opacity: pSaving ? 0.7 : 1,
+              }}
+            >
+              {pSaving ? "Guardando..." : "Confirmar compra"}
+            </button>
+          </Sheet>
+        );
+      })()}
+
+      {/* ── SHEET: Picker de artículo (compra) ── */}
+      {showPItemSheet && (
+        <Sheet onClose={() => setShowPItemSheet(false)} title="Agregar artículo">
+          {(() => {
+            const availableItems = invItems.filter(
+              (i) => !purchaseLines.some((l) => l.itemId === i.id),
+            );
+            if (availableItems.length === 0) {
+              return (
+                <div style={{ textAlign: "center", color: mu, padding: 24, fontSize: 14 }}>
+                  Ya agregaste todos los artículos
+                </div>
+              );
+            }
+            return availableItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => addPurchaseLine(item.id)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "13px 4px",
+                  background: "none",
+                  border: "none",
+                  borderBottom: `1px solid ${bd}`,
+                  fontSize: 15,
+                  color: "#111827",
+                  cursor: "pointer",
+                }}
+              >
+                {item.name}
+                <span style={{ fontSize: 12, color: mu, marginLeft: 8 }}>{item.unit}</span>
+              </button>
+            ));
+          })()}
+        </Sheet>
+      )}
+
+      {/* ── SHEET: Picker de tienda (compra) ── */}
+      {showPStoreSheet && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,.4)",
+            display: "flex",
+            alignItems: "flex-end",
+            zIndex: 1000,
+          }}
+          onClick={() => setShowPStoreSheet(false)}
+        >
+          <div
+            style={{
+              background: wh,
+              borderRadius: "20px 20px 0 0",
+              width: "100%",
+              paddingBottom: 32,
+              boxSizing: "border-box",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                padding: "20px 20px 12px",
+                fontSize: 15,
+                fontWeight: 700,
+                color: "#111827",
+                borderBottom: `1px solid ${bd}`,
+              }}
+            >
+              Tienda
+            </div>
+            {["", ...STORES].map((s) => (
+              <button
+                key={s || "_none"}
+                onClick={() => {
+                  setPStore(s);
+                  setShowPStoreSheet(false);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  padding: "15px 20px",
+                  border: "none",
+                  borderBottom: `1px solid ${bd}`,
+                  background: pStore === s ? `${G}0D` : "none",
+                  color: pStore === s ? G : "#111827",
+                  fontSize: 15,
+                  fontWeight: pStore === s ? 600 : 400,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  boxSizing: "border-box",
+                }}
+              >
+                {s || "Sin especificar"}
+                {pStore === s && <span style={{ color: G, fontSize: 16 }}>✓</span>}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {showDetail && (
