@@ -681,6 +681,8 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     getRestocksForEntry,
     deleteRestockAndRevertStock,
     updateRestockAndAdjustStock,
+    generateMedInfo,
+    saveMedInfo,
   } = useInventory(activeGroup?.id);
 
   const { logEntries, logLoading, logAction, fetchLog } = useAuditLog(activeGroup?.id, userId);
@@ -732,6 +734,12 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [showRestock, setShowRestock] = useState(null);
   const [showDetail, setShowDetail] = useState(null);
   const [showAdjust, setShowAdjust] = useState(null);
+  // Info orientativa (IA / manual) en el detalle del artículo
+  const [genInfoLoading, setGenInfoLoading] = useState(false);
+  const [editInfo, setEditInfo] = useState(false);
+  const [editInd, setEditInd] = useState("");
+  const [editSide, setEditSide] = useState("");
+  const [infoError, setInfoError] = useState(null);
   const [showUnitSheet, setShowUnitSheet] = useState(false);
   const [showStoreSheet, setShowStoreSheet] = useState(false);
   const [restockHistory, setRestockHistory] = useState([]);
@@ -1385,6 +1393,8 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
 
   async function openDetail(item) {
     setShowDetail(item);
+    setEditInfo(false);
+    setInfoError(null);
     setRestockHistory([]);
     setHistoryLoading(true);
     try {
@@ -1394,6 +1404,38 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
       console.error(e);
     } finally {
       setHistoryLoading(false);
+    }
+  }
+
+  async function handleGenInfo(item) {
+    setGenInfoLoading(true);
+    setInfoError(null);
+    try {
+      await generateMedInfo(item.id, item.name);
+    } catch (e) {
+      setInfoError(e.message || "No se pudo generar la información");
+    } finally {
+      setGenInfoLoading(false);
+    }
+  }
+
+  function openEditInfo(item) {
+    setEditInd(item.indication || "");
+    setEditSide(item.side_effects || "");
+    setInfoError(null);
+    setEditInfo(true);
+  }
+
+  async function handleSaveInfo(item) {
+    setGenInfoLoading(true);
+    setInfoError(null);
+    try {
+      await saveMedInfo(item.id, { indication: editInd, side_effects: editSide });
+      setEditInfo(false);
+    } catch (e) {
+      setInfoError(e.message || "No se pudo guardar");
+    } finally {
+      setGenInfoLoading(false);
     }
   }
 
@@ -3907,6 +3949,130 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
               )}
             </div>
           </div>
+
+          {(() => {
+            const it = invItems.find((i) => i.id === showDetail.id) || showDetail;
+            const hasInfo = it.indication || it.side_effects;
+            return (
+              <div style={{ marginBottom: 20 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 8,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: mu,
+                      textTransform: "uppercase",
+                      letterSpacing: 0.6,
+                    }}
+                  >
+                    Información del medicamento
+                  </span>
+                </div>
+
+                {editInfo ? (
+                  <>
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 12, color: mu, marginBottom: 4 }}>
+                        Para qué sirve
+                      </div>
+                      <textarea
+                        value={editInd}
+                        onChange={(e) => setEditInd(e.target.value)}
+                        rows={3}
+                        style={{ ...inputSt, resize: "vertical" }}
+                      />
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 12, color: mu, marginBottom: 4 }}>
+                        Posibles efectos secundarios
+                      </div>
+                      <textarea
+                        value={editSide}
+                        onChange={(e) => setEditSide(e.target.value)}
+                        rows={3}
+                        style={{ ...inputSt, resize: "vertical" }}
+                      />
+                    </div>
+                    {infoError && (
+                      <div style={{ color: rd, fontSize: 12, marginBottom: 10 }}>{infoError}</div>
+                    )}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={() => handleSaveInfo(it)}
+                        disabled={genInfoLoading}
+                        style={{ flex: 1, padding: "10px 0", background: G, color: wh, border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", opacity: genInfoLoading ? 0.7 : 1 }}
+                      >
+                        {genInfoLoading ? "Guardando…" : "Guardar"}
+                      </button>
+                      <button
+                        onClick={() => setEditInfo(false)}
+                        style={{ flex: 1, padding: "10px 0", background: wh, color: "#111827", border: `1.5px solid ${bd}`, borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {hasInfo ? (
+                      <div style={{ background: "#F9FAFB", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+                        {it.indication && (
+                          <div style={{ marginBottom: it.side_effects ? 10 : 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", marginBottom: 2 }}>Para qué sirve</div>
+                            <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.45 }}>{it.indication}</div>
+                          </div>
+                        )}
+                        {it.side_effects && (
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", marginBottom: 2 }}>Posibles efectos secundarios</div>
+                            <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.45 }}>{it.side_effects}</div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 13, color: mu, marginBottom: 8 }}>
+                        Sin información todavía.
+                      </div>
+                    )}
+
+                    <div style={{ fontSize: 11, color: mu, marginBottom: 10, lineHeight: 1.4 }}>
+                      ⚠️ Información orientativa generada por IA. No sustituye la indicación de un profesional de salud.
+                    </div>
+
+                    {infoError && (
+                      <div style={{ color: rd, fontSize: 12, marginBottom: 10 }}>{infoError}</div>
+                    )}
+
+                    {canEdit && (
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          onClick={() => handleGenInfo(it)}
+                          disabled={genInfoLoading}
+                          style={{ flex: 1, padding: "9px 0", background: hasInfo ? wh : G, color: hasInfo ? "#111827" : wh, border: hasInfo ? `1.5px solid ${bd}` : "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: genInfoLoading ? 0.7 : 1 }}
+                        >
+                          {genInfoLoading ? "Generando…" : hasInfo ? "Regenerar con IA" : "✨ Generar con IA"}
+                        </button>
+                        <button
+                          onClick={() => openEditInfo(it)}
+                          disabled={genInfoLoading}
+                          style={{ flex: 1, padding: "9px 0", background: wh, color: "#111827", border: `1.5px solid ${bd}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                        >
+                          Editar a mano
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })()}
 
           {canEdit && (
             <div

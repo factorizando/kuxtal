@@ -101,8 +101,52 @@ export function useInventory(groupId) {
         console.error("item image upload error:", e);
       }
     }
+    // Generar la información orientativa (indicación + efectos) en segundo
+    // plano. Si falla (p. ej. sin API key configurada), no rompe la creación;
+    // el usuario podrá generarla a mano desde el detalle.
+    if (data?.id) {
+      generateMedInfo(data.id, name.trim()).catch((e) =>
+        console.error("auto generateMedInfo error:", e),
+      );
+    }
     await fetchItems();
     return data;
+  }
+
+  // Llama a la edge function que genera la info con IA y la guarda en el item.
+  // Devuelve { indication, side_effects }.
+  async function generateMedInfo(itemId, name) {
+    const { data, error } = await supabase.functions.invoke("generate-med-info", {
+      body: { name },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    const indication = (data?.indication || "").trim() || null;
+    const side_effects = (data?.side_effects || "").trim() || null;
+    await supabase
+      .from("inventory_items")
+      .update({
+        indication,
+        side_effects,
+        info_generated_at: new Date().toISOString(),
+      })
+      .eq("id", itemId);
+    await fetchItems();
+    return { indication, side_effects };
+  }
+
+  // Guarda la info editada a mano.
+  async function saveMedInfo(itemId, { indication, side_effects }) {
+    const { error } = await supabase
+      .from("inventory_items")
+      .update({
+        indication: indication?.trim() || null,
+        side_effects: side_effects?.trim() || null,
+        info_generated_at: new Date().toISOString(),
+      })
+      .eq("id", itemId);
+    if (error) throw error;
+    await fetchItems();
   }
 
   async function deleteItem(id) {
@@ -423,5 +467,5 @@ export function useInventory(groupId) {
     return data || [];
   }
 
-  return { items, loading, addItem, updateItem, deleteItem, adjustQuantity, restock, restockBatch, fetchRestocks, fetchAdjustments, getRestockForEntry, getRestocksForEntry, deleteRestockAndRevertStock, updateRestockAndAdjustStock, refetch: fetchItems };
+  return { items, loading, addItem, updateItem, deleteItem, adjustQuantity, restock, restockBatch, fetchRestocks, fetchAdjustments, getRestockForEntry, getRestocksForEntry, deleteRestockAndRevertStock, updateRestockAndAdjustStock, generateMedInfo, saveMedInfo, refetch: fetchItems };
 }
