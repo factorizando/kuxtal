@@ -170,6 +170,17 @@ export function useMedications(groupId, userId) {
     await fetchAll();
   }
 
+  // Borra una pauta por completo (las tomas ligadas caen en cascada).
+  async function deleteSchedule(schedule) {
+    const { error } = await supabase
+      .from("medication_schedules")
+      .delete()
+      .eq("id", schedule.id);
+    if (error) throw error;
+    await recalcItemConsumption(schedule.item_id);
+    await fetchAll();
+  }
+
   async function markTaken({ scheduleId, itemId, date, time, dose, note }) {
     const { error } = await supabase.from("medication_intakes").insert({
       group_id: groupId,
@@ -258,6 +269,31 @@ export function useMedications(groupId, userId) {
     return cons;
   }
 
+  // Edita los datos de cabecera de una consulta (fecha, médico, notas).
+  async function updateConsultation(id, { consultationDate, doctor, notes }) {
+    const { error } = await supabase
+      .from("consultations")
+      .update({
+        consultation_date: consultationDate,
+        doctor: doctor?.trim() || null,
+        notes: notes?.trim() || null,
+      })
+      .eq("id", id);
+    if (error) throw error;
+    await fetchAll();
+  }
+
+  // Borra una consulta. Las pautas ligadas conservan su vigencia: el FK
+  // consultation_id es ON DELETE SET NULL, así que solo pierden el vínculo.
+  async function deleteConsultation(id) {
+    const { error } = await supabase
+      .from("consultations")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+    await fetchAll();
+  }
+
   return {
     schedules,
     consultations,
@@ -266,9 +302,12 @@ export function useMedications(groupId, userId) {
     addSchedule,
     updateSchedule,
     suspendSchedule,
+    deleteSchedule,
     markTaken,
     unmarkTaken,
     saveConsultation,
+    updateConsultation,
+    deleteConsultation,
     recalcItemConsumption,
     refetch: fetchAll,
   };

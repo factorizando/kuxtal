@@ -800,12 +800,16 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
     addSchedule,
     updateSchedule,
     suspendSchedule,
+    deleteSchedule,
     markTaken,
     unmarkTaken,
     saveConsultation,
+    updateConsultation,
+    deleteConsultation,
   } = useMedications(activeGroup?.id, userId);
 
   const canEdit = myRole === "admin" || myRole === "caregiver";
+  const isAdmin = myRole === "admin";
   const [medsTab, setMedsTab] = useState("hoy");
   const today = todayStr();
 
@@ -816,6 +820,8 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
   const [showAddSchedule, setShowAddSchedule] = useState(false);
   const [editSchedule, setEditSchedule] = useState(null);
   const [showConsult, setShowConsult] = useState(false);
+  const [editConsult, setEditConsult] = useState(null); // consulta en edición
+  const [editConsultForm, setEditConsultForm] = useState({ consultationDate: today, doctor: "", notes: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -919,6 +925,55 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
       setScheduleDetail(null);
     } catch (e) {
       alert(e.message || "Error al suspender");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteSchedule(s) {
+    if (!confirm("¿Borrar esta pauta? Se eliminará junto con su historial de tomas. Esta acción no se puede deshacer.")) return;
+    setBusy(true);
+    try {
+      await deleteSchedule(s);
+      setScheduleDetail(null);
+    } catch (e) {
+      alert(e.message || "Error al borrar");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openEditConsult(c) {
+    setEditConsultForm({
+      consultationDate: c.consultation_date,
+      doctor: c.doctor || "",
+      notes: c.notes || "",
+    });
+    setEditConsult(c);
+    setConsultDetail(null);
+    setErr(null);
+  }
+
+  async function handleUpdateConsult() {
+    setBusy(true); setErr(null);
+    try {
+      await updateConsultation(editConsult.id, editConsultForm);
+      setEditConsult(null);
+    } catch (e) {
+      setErr(e.message || "Error al actualizar la consulta");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteConsult(c) {
+    if (!confirm("¿Borrar esta consulta? Las pautas que indicó seguirán vigentes, solo se quitará el registro de la consulta.")) return;
+    setBusy(true);
+    try {
+      await deleteConsultation(c.id);
+      setConsultDetail(null);
+    } catch (e) {
+      alert(e.message || "Error al borrar la consulta");
     } finally {
       setBusy(false);
     }
@@ -1259,20 +1314,31 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
             {scheduleDetail.notes && <div><b>Notas:</b> {scheduleDetail.notes}</div>}
           </div>
           {canEdit && (
-            <div style={{ display: "flex", gap: 10 }}>
-              <button
-                onClick={() => openEditSchedule(scheduleDetail)}
-                style={{ flex: 1, background: "#111827", color: wh, border: "none", borderRadius: 10, padding: "12px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
-              >
-                Editar
-              </button>
-              <button
-                onClick={() => handleSuspend(scheduleDetail)}
-                disabled={busy}
-                style={{ flex: 1, background: wh, color: rd, border: `1px solid ${bd}`, borderRadius: 10, padding: "12px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
-              >
-                Suspender
-              </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => openEditSchedule(scheduleDetail)}
+                  style={{ flex: 1, background: "#111827", color: wh, border: "none", borderRadius: 10, padding: "12px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Editar
+                </button>
+                <button
+                  onClick={() => handleSuspend(scheduleDetail)}
+                  disabled={busy}
+                  style={{ flex: 1, background: wh, color: rd, border: `1px solid ${bd}`, borderRadius: 10, padding: "12px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Suspender
+                </button>
+              </div>
+              {isAdmin && (
+                <button
+                  onClick={() => handleDeleteSchedule(scheduleDetail)}
+                  disabled={busy}
+                  style={{ background: "none", color: rd, border: "none", padding: "8px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Borrar pauta
+                </button>
+              )}
             </div>
           )}
         </Sheet>
@@ -1309,7 +1375,7 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
             {consultDetail.notes && <div><b>Notas:</b> {consultDetail.notes}</div>}
           </div>
           {consultDetailScheds.length > 0 && (
-            <div>
+            <div style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: mu, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>
                 Pautas indicadas
               </div>
@@ -1323,6 +1389,60 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
               </div>
             </div>
           )}
+          {canEdit && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button
+                onClick={() => openEditConsult(consultDetail)}
+                style={{ background: "#111827", color: wh, border: "none", borderRadius: 10, padding: "12px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+              >
+                Editar
+              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => handleDeleteConsult(consultDetail)}
+                  disabled={busy}
+                  style={{ background: "none", color: rd, border: "none", padding: "8px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Borrar consulta
+                </button>
+              )}
+            </div>
+          )}
+        </Sheet>
+      )}
+
+      {/* Sheet: editar consulta */}
+      {editConsult && (
+        <Sheet onClose={() => setEditConsult(null)} title="Editar consulta" swipeToClose>
+          <Field label="Fecha de la consulta">
+            <input
+              type="date"
+              value={editConsultForm.consultationDate}
+              onChange={(e) => setEditConsultForm((h) => ({ ...h, consultationDate: e.target.value }))}
+              style={inputSt}
+            />
+          </Field>
+          <Field label="Médico (opcional)">
+            <input
+              type="text"
+              value={editConsultForm.doctor}
+              onChange={(e) => setEditConsultForm((h) => ({ ...h, doctor: e.target.value }))}
+              placeholder="Dr. / Dra."
+              style={inputSt}
+            />
+          </Field>
+          <Field label="Notas (opcional)">
+            <textarea
+              value={editConsultForm.notes}
+              onChange={(e) => setEditConsultForm((h) => ({ ...h, notes: e.target.value }))}
+              rows={2}
+              style={{ ...inputSt, resize: "vertical" }}
+            />
+          </Field>
+          {err && <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>{err}</div>}
+          <button onClick={handleUpdateConsult} disabled={busy} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>
+            {busy ? "Guardando…" : "Guardar cambios"}
+          </button>
         </Sheet>
       )}
 
