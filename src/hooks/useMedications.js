@@ -205,11 +205,51 @@ export function useMedications(groupId, userId) {
     setIntakes((prev) => prev.filter((i) => i.id !== intakeId));
   }
 
+  // ── Costo de consulta ↔ presupuesto ───────────────────────
+  // Normaliza el costo: devuelve un número > 0 o null (sin costo).
+  function parseConsultCost(raw) {
+    if (raw == null || raw === "") return null;
+    const n = parseFloat(raw);
+    return isNaN(n) || n <= 0 ? null : n;
+  }
+
+  function consultBudgetNote(doctor) {
+    const d = doctor?.trim();
+    return d ? `Consulta · ${d}` : "Consulta médica";
+  }
+
+  // Crea el movimiento de gasto de una consulta y devuelve su id.
+  async function createConsultBudgetEntry(cost, doctor, date) {
+    const { data, error } = await supabase
+      .from("budget_entries")
+      .insert({
+        group_id: groupId,
+        recorded_by: userId,
+        type: "expense",
+        amount: cost,
+        category: "Consulta médica",
+        note: consultBudgetNote(doctor),
+        entry_date: date,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return data.id;
+  }
+
   // ── Flujo guiado de consulta ──────────────────────────────
-  // payload: { consultationDate, doctor, notes,
+  // payload: { consultationDate, doctor, notes, cost,
   //   decisions: [{ scheduleId, itemId, action: 'keep'|'suspend'|'adjust', fields? }],
   //   newSchedules: [scheduleFieldsPayload] }
   async function saveConsultation(payload) {
+    // Si la consulta tiene costo, se registra como gasto en el presupuesto y se
+    // enlaza a la consulta para poder mantenerlo sincronizado.
+    const cost = parseConsultCost(payload.cost);
+    let budgetEntryId = null;
+    if (cost) {
+      budgetEntryId = await createConsultBudgetEntry(cost, payload.doctor, payload.consultationDate);
+    }
+
     const { data: cons, error: consErr } = await supabase
       .from("consultations")
       .insert({
@@ -218,6 +258,8 @@ export function useMedications(groupId, userId) {
         consultation_date: payload.consultationDate,
         doctor: payload.doctor?.trim() || null,
         notes: payload.notes?.trim() || null,
+        cost: cost,
+        budget_entry_id: budgetEntryId,
       })
       .select()
       .single();
@@ -269,14 +311,53 @@ export function useMedications(groupId, userId) {
     return cons;
   }
 
-  // Edita los datos de cabecera de una consulta (fecha, médico, notas).
-  async function updateConsultation(id, { consultationDate, doctor, notes }) {
+  // Edita los datos de cabecera de una consulta (fecha, médico, notas, costo).
+  // El movimiento de presupuesto vinculado se crea, actualiza o borra según el
+  // costo nuevo.
+  async function updateConsultation(id, { consultationDate, doctor, notes, cost }) {
+    const newCost = parseConsultCost(cost);
+
+    // Recuperar el vínculo actual con el presupuesto.
+    const { data: current, error: curErr } = await supabase
+      .from("consultations")
+      .select("budget_entry_id")
+      .eq("id", id)
+      .single();
+    if (curErr) throw curErr;
+
+    let budgetEntryId = current?.budget_entry_id || null;
+    if (newCost) {
+      if (budgetEntryId) {
+        const { error: upErr } = await supabase
+          .from("budget_entries")
+          .update({
+            amount: newCost,
+            note: consultBudgetNote(doctor),
+            entry_date: consultationDate,
+          })
+          .eq("id", budgetEntryId);
+        if (upErr) throw upErr;
+      } else {
+        budgetEntryId = await createConsultBudgetEntry(newCost, doctor, consultationDate);
+      }
+    } else if (budgetEntryId) {
+      // Ya no tiene costo: borrar el gasto vinculado.
+      const { error: delErr } = await supabase
+        .from("budget_entries")
+        .delete()
+        .eq("id", budgetEntryId);
+      if (delErr) throw delErr;
+      budgetEntryId = null;
+    }
+
     const { error } = await supabase
       .from("consultations")
       .update({
         consultation_date: consultationDate,
         doctor: doctor?.trim() || null,
         notes: notes?.trim() || null,
+        cost: newCost,
+        budget_entry_id: budgetEntryId,
       })
       .eq("id", id);
     if (error) throw error;
@@ -285,12 +366,25 @@ export function useMedications(groupId, userId) {
 
   // Borra una consulta. Las pautas ligadas conservan su vigencia: el FK
   // consultation_id es ON DELETE SET NULL, así que solo pierden el vínculo.
+  // Si la consulta generó un gasto, también se borra ese movimiento.
   async function deleteConsultation(id) {
+    const { data: current } = await supabase
+      .from("consultations")
+      .select("budget_entry_id")
+      .eq("id", id)
+      .single();
     const { error } = await supabase
       .from("consultations")
       .delete()
       .eq("id", id);
     if (error) throw error;
+    if (current?.budget_entry_id) {
+      const { error: delErr } = await supabase
+        .from("budget_entries")
+        .delete()
+        .eq("id", current.budget_entry_id);
+      if (delErr) throw delErr;
+    }
     await fetchAll();
   }
 

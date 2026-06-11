@@ -68,6 +68,15 @@ function fmtDate(str) {
   });
 }
 
+function fmtMoney(n) {
+  return new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
 // Suma n días a una fecha "YYYY-MM-DD" (en local) y devuelve "YYYY-MM-DD".
 function addDaysStr(startStr, n) {
   const [y, m, d] = startStr.split("-").map(Number);
@@ -779,6 +788,11 @@ function ConsultationCard({ consultation, onTap }) {
         </div>
         <div style={{ fontSize: 13, color: mu }}>{fmtDate(consultation.consultation_date)}</div>
       </div>
+      {consultation.cost != null && (
+        <span style={{ fontSize: 13, fontWeight: 600, color: "#111827", flexShrink: 0, marginRight: 8 }}>
+          {fmtMoney(consultation.cost)}
+        </span>
+      )}
       <span style={{ fontSize: 12, color: mu, flexShrink: 0 }}>Ver detalle ›</span>
     </button>
   );
@@ -822,7 +836,7 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
   const [editSchedule, setEditSchedule] = useState(null);
   const [showConsult, setShowConsult] = useState(false);
   const [editConsult, setEditConsult] = useState(null); // consulta en edición
-  const [editConsultForm, setEditConsultForm] = useState({ consultationDate: today, doctor: "", notes: "" });
+  const [editConsultForm, setEditConsultForm] = useState({ consultationDate: today, doctor: "", notes: "", cost: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -830,7 +844,7 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
   const [schedForm, setSchedForm] = useState(emptyScheduleForm());
 
   // Asistente de consulta
-  const [consHeader, setConsHeader] = useState({ consultationDate: today, doctor: "", notes: "" });
+  const [consHeader, setConsHeader] = useState({ consultationDate: today, doctor: "", notes: "", cost: "" });
   const [decisions, setDecisions] = useState({}); // scheduleId -> { action, fields }
   const [newScheds, setNewScheds] = useState([]); // [{ form }]
 
@@ -960,6 +974,7 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
       consultationDate: c.consultation_date,
       doctor: c.doctor || "",
       notes: c.notes || "",
+      cost: c.cost != null ? String(c.cost) : "",
     });
     setEditConsult(c);
     setConsultDetail(null);
@@ -1032,7 +1047,7 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
 
   // ── Asistente de consulta ───────────────────────────────────
   function openConsult() {
-    setConsHeader({ consultationDate: today, doctor: "", notes: "" });
+    setConsHeader({ consultationDate: today, doctor: "", notes: "", cost: "" });
     const init = {};
     for (const s of activeSchedules) init[s.id] = { action: "keep", fields: scheduleToForm(s) };
     setDecisions(init);
@@ -1080,6 +1095,7 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
         consultationDate: consHeader.consultationDate,
         doctor: consHeader.doctor,
         notes: consHeader.notes,
+        cost: consHeader.cost,
         decisions: decisionList,
         newSchedules: newScheds.map((ns) => ns.form),
       });
@@ -1366,6 +1382,9 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 14, color: "#111827", marginBottom: 16 }}>
             <div><b>Fecha:</b> {fmtDate(consultDetail.consultation_date)}</div>
             {consultDetail.doctor && <div><b>Médico:</b> {consultDetail.doctor}</div>}
+            {consultDetail.cost != null && (
+              <div><b>Costo:</b> {fmtMoney(consultDetail.cost)} <span style={{ color: mu, fontSize: 12 }}>· registrado en presupuesto</span></div>
+            )}
             {consultDetail.notes && <div><b>Notas:</b> {consultDetail.notes}</div>}
           </div>
           {consultDetailScheds.length > 0 && (
@@ -1432,6 +1451,23 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
               rows={2}
               style={{ ...inputSt, resize: "vertical" }}
             />
+          </Field>
+          <Field label="Costo de la consulta (MXN, opcional)">
+            <input
+              type="number"
+              inputMode="decimal"
+              value={editConsultForm.cost}
+              onChange={(e) => setEditConsultForm((h) => ({ ...h, cost: e.target.value }))}
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+              style={inputSt}
+            />
+            <div style={{ fontSize: 12, color: mu, marginTop: 6 }}>
+              {parseFloat(editConsultForm.cost) > 0
+                ? `Gasto de ${fmtMoney(parseFloat(editConsultForm.cost))} en el presupuesto.`
+                : "Sin costo: no genera gasto. Si tenía uno, se eliminará del presupuesto."}
+            </div>
           </Field>
 
           <div style={{ marginBottom: 16 }}>
@@ -1543,6 +1579,23 @@ export default function MedsScreen({ userId, onSwipeScreen }) {
               rows={2}
               style={{ ...inputSt, resize: "vertical" }}
             />
+          </Field>
+          <Field label="Costo de la consulta (MXN, opcional)">
+            <input
+              type="number"
+              inputMode="decimal"
+              value={consHeader.cost}
+              onChange={(e) => setConsHeader((h) => ({ ...h, cost: e.target.value }))}
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+              style={inputSt}
+            />
+            {parseFloat(consHeader.cost) > 0 && (
+              <div style={{ fontSize: 12, color: mu, marginTop: 6 }}>
+                Se registrará como gasto de {fmtMoney(parseFloat(consHeader.cost))} en el presupuesto.
+              </div>
+            )}
           </Field>
 
           {activeSchedules.length > 0 && (
