@@ -324,9 +324,14 @@ export function useInventory(groupId) {
   // Reabastecer varios artículos en una sola compra: crea UN movimiento de
   // presupuesto con el total y N reabastecimientos vinculados a ese movimiento.
   // `lines`: [{ itemId, quantity, price }]
-  async function restockBatch({ lines, store, purchasedAt, notes, recordedBy, createBudgetEntry, file }) {
+  async function restockBatch({ lines, store, purchasedAt, notes, globalDiscount, coveredBy, recordedBy, createBudgetEntry, file }) {
     if (!lines || lines.length === 0) throw new Error("Agrega al menos un artículo");
     const totalPrice = lines.reduce((s, l) => s + (l.price || 0), 0);
+    // Cuando no se registra en presupuesto pero hay costo, se anota quién cubrió
+    // el gasto en las notas de cada reabastecimiento (queda en el historial).
+    const restockNote = [notes?.trim(), coveredBy ? `Cubierto por ${coveredBy}` : null]
+      .filter(Boolean)
+      .join(" · ") || null;
 
     // Crear el movimiento único de presupuesto con el total de la compra
     let budgetEntryId = null;
@@ -334,7 +339,8 @@ export function useInventory(groupId) {
       const names = lines
         .map((l) => items.find((i) => i.id === l.itemId)?.name)
         .filter(Boolean);
-      const noteParts = [names.join(", "), store?.trim()].filter(Boolean);
+      const discLabel = globalDiscount > 0 ? `−${globalDiscount}% global` : null;
+      const noteParts = [names.join(", "), store?.trim(), discLabel].filter(Boolean);
       const { data: budgetData, error: budgetErr } = await supabase
         .from("budget_entries")
         .insert({
@@ -392,7 +398,7 @@ export function useInventory(groupId) {
         store: store?.trim() || null,
         purchased_at: purchasedAt,
         budget_entry_id: budgetEntryId,
-        notes: notes?.trim() || null,
+        notes: restockNote,
       });
       if (restockErr) throw restockErr;
 

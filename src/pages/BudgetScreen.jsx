@@ -43,6 +43,16 @@ const STORES = [
   "Otro",
 ];
 
+// Fuentes de medicamentos sin costo (reabastecimiento que no genera gasto)
+const SOURCES = [
+  "IMSS",
+  "Seguro Popular / INSABI",
+  "ISSSTE",
+  "Donación",
+  "Muestra médica",
+  "Otro",
+];
+
 const UNITS = [
   "tabletas",
   "cápsulas",
@@ -122,9 +132,12 @@ function Field({ label, children }) {
 
 function PurchaseLine({ item, line, onChange, onRemove }) {
   const hasPack = !!item.units_per_pack;
-  const computedQty = hasPack
-    ? (parseInt(line.boxes) || 0) * item.units_per_pack
-    : parseFloat(line.quantity) || 0;
+  const count = hasPack ? parseInt(line.boxes) || 0 : parseFloat(line.quantity) || 0;
+  const computedQty = hasPack ? count * item.units_per_pack : count;
+  const disc = Math.min(100, Math.max(0, parseFloat(line.discount) || 0));
+  const subtotal = (parseFloat(line.unitPrice) || 0) * count;
+  const lineNet = subtotal * (1 - disc / 100);
+  const numSt = { ...inputSt, flex: 1, minWidth: 0 };
   return (
     <div
       style={{
@@ -161,7 +174,7 @@ function PurchaseLine({ item, line, onChange, onRemove }) {
           ×
         </button>
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
         {hasPack ? (
           <input
             type="number"
@@ -171,36 +184,68 @@ function PurchaseLine({ item, line, onChange, onRemove }) {
             onChange={(e) => onChange({ ...line, boxes: e.target.value })}
             min="1"
             step="1"
-            style={{ ...inputSt, flex: 1 }}
+            style={numSt}
           />
         ) : (
           <input
             type="number"
             inputMode="decimal"
-            placeholder={`Cantidad (${item.unit})`}
+            placeholder={`Cant. (${item.unit})`}
             value={line.quantity}
             onChange={(e) => onChange({ ...line, quantity: e.target.value })}
             min="0.01"
             step="1"
-            style={{ ...inputSt, flex: 1 }}
+            style={numSt}
           />
         )}
         <input
           type="number"
           inputMode="decimal"
-          placeholder="Precio $"
-          value={line.price}
-          onChange={(e) => onChange({ ...line, price: e.target.value })}
+          placeholder={hasPack ? "$ por caja" : "$ c/u"}
+          value={line.unitPrice}
+          onChange={(e) => onChange({ ...line, unitPrice: e.target.value })}
           min="0"
           step="0.01"
-          style={{ ...inputSt, flex: 1 }}
+          style={numSt}
+        />
+        <input
+          type="number"
+          inputMode="decimal"
+          placeholder="Desc %"
+          value={line.discount}
+          onChange={(e) => onChange({ ...line, discount: e.target.value })}
+          min="0"
+          max="100"
+          step="1"
+          style={{ ...numSt, maxWidth: 78 }}
         />
       </div>
-      {hasPack && computedQty > 0 && (
-        <div style={{ fontSize: 12, color: G, fontWeight: 600, marginTop: 6 }}>
-          = {computedQty} {item.unit}
-        </div>
-      )}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          fontSize: 12,
+        }}
+      >
+        <span style={{ color: G, fontWeight: 600 }}>
+          {hasPack && computedQty > 0 ? `= ${computedQty} ${item.unit}` : ""}
+        </span>
+        {subtotal > 0 && (
+          <span style={{ color: "#111827", fontWeight: 600 }}>
+            {disc > 0 ? (
+              <>
+                <span style={{ color: mu, textDecoration: "line-through", marginRight: 6, fontWeight: 400 }}>
+                  {fmtCurrency(subtotal)}
+                </span>
+                {fmtCurrency(lineNet)}
+              </>
+            ) : (
+              fmtCurrency(subtotal)
+            )}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -721,11 +766,9 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [rQuantity, setRQuantity] = useState("");
   const [rBoxes, setRBoxes] = useState("");
   const [rBrand, setRBrand] = useState("");
-  const [rStore, setRStore] = useState("");
-  const [rPrice, setRPrice] = useState("");
+  const [rSource, setRSource] = useState("");
   const [rDate, setRDate] = useState(todayStr());
   const [rNotes, setRNotes] = useState("");
-  const [rCreateBudget, setRCreateBudget] = useState(true);
   const [rFile, setRFile] = useState(null);
   const [rFilePreview, setRFilePreview] = useState(null);
   const [rSaving, setRSaving] = useState(false);
@@ -740,14 +783,20 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [purchaseLines, setPurchaseLines] = useState([]); // [{ itemId, boxes, quantity, price }]
   const [pStore, setPStore] = useState("");
   const [pDate, setPDate] = useState(todayStr());
+  const [pGlobalDiscount, setPGlobalDiscount] = useState("");
   const [pNotes, setPNotes] = useState("");
   const [pCreateBudget, setPCreateBudget] = useState(true);
+  // Quién cubre el gasto cuando NO se registra en presupuesto. Guarda un id de
+  // perfil (integrante) o una etiqueta libre (nombre agregado a mano).
+  const [pCoveredBy, setPCoveredBy] = useState("");
   const [pFile, setPFile] = useState(null);
   const [pFilePreview, setPFilePreview] = useState(null);
   const [pSaving, setPSaving] = useState(false);
   const [purchaseError, setPurchaseError] = useState(null);
   const [showPItemSheet, setShowPItemSheet] = useState(false);
   const [showPStoreSheet, setShowPStoreSheet] = useState(false);
+  const [showPCoveredBySheet, setShowPCoveredBySheet] = useState(false);
+  const [pCoveredByCustom, setPCoveredByCustom] = useState("");
 
   // ── Solicitudes state ─────────────────────────────────────
   const [showRequestForm, setShowRequestForm] = useState(false);
@@ -1181,11 +1230,9 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     setRQuantity("");
     setRBoxes("");
     setRBrand("");
-    setRStore("");
-    setRPrice("");
+    setRSource("");
     setRDate(todayStr());
     setRNotes("");
-    setRCreateBudget(true);
     setRestockError(null);
     setRFile(null);
     setRFilePreview(null);
@@ -1196,8 +1243,11 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     setPurchaseLines([]);
     setPStore("");
     setPDate(todayStr());
+    setPGlobalDiscount("");
     setPNotes("");
     setPCreateBudget(true);
+    setPCoveredBy("");
+    setPCoveredByCustom("");
     setPFile(null);
     setPFilePreview(null);
     setPurchaseError(null);
@@ -1205,7 +1255,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   }
 
   function addPurchaseLine(itemId) {
-    setPurchaseLines((prev) => [...prev, { itemId, boxes: "", quantity: "", price: "" }]);
+    setPurchaseLines((prev) => [...prev, { itemId, boxes: "", quantity: "", unitPrice: "", discount: "" }]);
     setShowPItemSheet(false);
   }
 
@@ -1226,26 +1276,46 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
       setPurchaseError("Ingresa la fecha de compra");
       return;
     }
+    const globalDisc = Math.min(100, Math.max(0, parseFloat(pGlobalDiscount) || 0));
     const lines = [];
     for (const l of purchaseLines) {
       const item = invItems.find((i) => i.id === l.itemId);
       if (!item) continue;
+      // `count` es la cantidad que el usuario captura (cajas o unidades) y a la
+      // que aplica el precio unitario; `qty` es el total en unidades del stock.
+      let count;
       let qty;
       if (item.units_per_pack) {
-        const boxes = parseInt(l.boxes);
-        if (!l.boxes || isNaN(boxes) || boxes <= 0) {
+        count = parseInt(l.boxes);
+        if (!l.boxes || isNaN(count) || count <= 0) {
           setPurchaseError(`Ingresa el número de cajas de ${item.name}`);
           return;
         }
-        qty = boxes * item.units_per_pack;
+        qty = count * item.units_per_pack;
       } else {
-        qty = parseFloat(l.quantity);
-        if (!l.quantity || isNaN(qty) || qty <= 0) {
+        count = parseFloat(l.quantity);
+        if (!l.quantity || isNaN(count) || count <= 0) {
           setPurchaseError(`Ingresa la cantidad de ${item.name}`);
           return;
         }
+        qty = count;
       }
-      lines.push({ itemId: l.itemId, quantity: qty, price: parseFloat(l.price) || 0 });
+      const lineDisc = Math.min(100, Math.max(0, parseFloat(l.discount) || 0));
+      const subtotal = (parseFloat(l.unitPrice) || 0) * count;
+      // Precio final por artículo: descuento de línea y descuento global
+      const finalPrice = subtotal * (1 - lineDisc / 100) * (1 - globalDisc / 100);
+      lines.push({ itemId: l.itemId, quantity: qty, price: parseFloat(finalPrice.toFixed(2)) });
+    }
+    // Si hay costo pero NO se registra en presupuesto, alguien lo cubre.
+    const total = lines.reduce((s, l) => s + l.price, 0);
+    let coveredByName = null;
+    if (total > 0 && !pCreateBudget) {
+      if (!pCoveredBy) {
+        setPurchaseError("Indica quién cubre el gasto");
+        return;
+      }
+      const member = members.find((m) => m.profiles.id === pCoveredBy);
+      coveredByName = member ? member.profiles.full_name || "Integrante" : pCoveredBy;
     }
     setPSaving(true);
     setPurchaseError(null);
@@ -1255,6 +1325,8 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
         store: pStore,
         purchasedAt: pDate,
         notes: pNotes,
+        globalDiscount: globalDisc,
+        coveredBy: coveredByName,
         recordedBy: userId,
         createBudgetEntry: pCreateBudget,
         file: pFile || null,
@@ -1284,7 +1356,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
       }
     }
     if (!rDate) {
-      setRestockError("Ingresa la fecha de compra");
+      setRestockError("Ingresa la fecha");
       return;
     }
     setRSaving(true);
@@ -1293,13 +1365,13 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
       await restock({
         itemId: showRestock.id,
         quantity: qty,
-        price: parseFloat(rPrice) || 0,
+        price: 0,
         brand: rBrand,
-        store: rStore,
+        store: rSource,
         purchasedAt: rDate,
         notes: rNotes,
         recordedBy: userId,
-        createBudgetEntry: rCreateBudget,
+        createBudgetEntry: false,
         itemName: showRestock.name,
         file: rFile || null,
       });
@@ -3169,8 +3241,26 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
           onClose={() => setShowRestock(null)}
           title={`Reabastecer · ${showRestock.name}`}
         >
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "flex-start",
+              background: `${G}0D`,
+              border: `1px solid ${G}33`,
+              borderRadius: 10,
+              padding: "10px 12px",
+              marginBottom: 16,
+            }}
+          >
+            <span style={{ fontSize: 16 }}>🏥</span>
+            <span style={{ fontSize: 12.5, color: "#111827", lineHeight: 1.4 }}>
+              Entrada <strong>sin costo</strong> (IMSS, Seguro Popular, donación…).
+              Si la compraste, usa <strong>Registrar compra</strong>.
+            </span>
+          </div>
           {showRestock.units_per_pack ? (
-            <Field label="Número de cajas compradas">
+            <Field label="Número de cajas recibidas">
               <input
                 type="number"
                 inputMode="numeric"
@@ -3196,7 +3286,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
               )}
             </Field>
           ) : (
-            <Field label={`Cantidad comprada (${showRestock.unit})`}>
+            <Field label={`Cantidad recibida (${showRestock.unit})`}>
               <input
                 type="number"
                 inputMode="decimal"
@@ -3218,37 +3308,25 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
               style={inputSt}
             />
           </Field>
-          <Field label="Tienda">
+          <Field label="Fuente">
             <button
               onClick={() => setShowStoreSheet(true)}
               style={{
                 ...inputSt,
                 textAlign: "left",
                 cursor: "pointer",
-                color: rStore ? "#111827" : "#9CA3AF",
+                color: rSource ? "#111827" : "#9CA3AF",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 border: `1px solid ${bd}`,
               }}
             >
-              <span>{rStore || "Sin especificar"}</span>
+              <span>{rSource || "Sin especificar"}</span>
               <span style={{ color: mu, fontSize: 13 }}>›</span>
             </button>
           </Field>
-          <Field label="Precio total pagado (MXN, opcional)">
-            <input
-              type="number"
-              inputMode="decimal"
-              placeholder="0.00"
-              value={rPrice}
-              onChange={(e) => setRPrice(e.target.value)}
-              min="0"
-              step="0.01"
-              style={inputSt}
-            />
-          </Field>
-          <Field label="Fecha de compra">
+          <Field label="Fecha">
             <input
               type="date"
               value={rDate}
@@ -3279,44 +3357,6 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
               }}
             />
           </Field>
-          {parseFloat(rPrice) > 0 && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                marginBottom: 18,
-                padding: "12px 14px",
-                background: "#F9FAFB",
-                borderRadius: 10,
-                cursor: "pointer",
-              }}
-              onClick={() => setRCreateBudget((v) => !v)}
-            >
-              <div
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 5,
-                  border: `2px solid ${rCreateBudget ? G : bd}`,
-                  background: rCreateBudget ? G : wh,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                {rCreateBudget && (
-                  <span style={{ color: wh, fontSize: 13, lineHeight: 1 }}>
-                    ✓
-                  </span>
-                )}
-              </div>
-              <span style={{ fontSize: 14, color: "#111827" }}>
-                Registrar como gasto en presupuesto
-              </span>
-            </div>
-          )}
           {restockError && (
             <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>
               {restockError}
@@ -3345,10 +3385,23 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
 
       {/* ── SHEET: Compra de varios artículos ── */}
       {showPurchase && (() => {
-        const total = purchaseLines.reduce((s, l) => s + (parseFloat(l.price) || 0), 0);
+        const subtotal = purchaseLines.reduce((s, l) => {
+          const item = invItems.find((i) => i.id === l.itemId);
+          if (!item) return s;
+          const count = item.units_per_pack ? parseInt(l.boxes) || 0 : parseFloat(l.quantity) || 0;
+          const disc = Math.min(100, Math.max(0, parseFloat(l.discount) || 0));
+          return s + (parseFloat(l.unitPrice) || 0) * count * (1 - disc / 100);
+        }, 0);
+        const globalDisc = Math.min(100, Math.max(0, parseFloat(pGlobalDiscount) || 0));
+        const globalDiscAmount = subtotal * (globalDisc / 100);
+        const total = subtotal - globalDiscAmount;
         const availableItems = invItems.filter(
           (i) => !purchaseLines.some((l) => l.itemId === i.id),
         );
+        const coveredMember = members.find((m) => m.profiles.id === pCoveredBy);
+        const coveredByLabel = coveredMember
+          ? coveredMember.profiles.full_name || "Integrante"
+          : pCoveredBy;
         return (
           <Sheet onClose={() => setShowPurchase(false)} title="Registrar compra">
             <Field label="Tienda">
@@ -3440,6 +3493,19 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
               </button>
             )}
 
+            <Field label="Descuento global (%, opcional)">
+              <input
+                type="number"
+                inputMode="decimal"
+                placeholder="0"
+                value={pGlobalDiscount}
+                onChange={(e) => setPGlobalDiscount(e.target.value)}
+                min="0"
+                max="100"
+                step="1"
+                style={inputSt}
+              />
+            </Field>
             <Field label="Notas (opcional)">
               <input
                 type="text"
@@ -3466,21 +3532,32 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
 
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
                 padding: "12px 14px",
                 background: "#F9FAFB",
                 borderRadius: 10,
                 marginBottom: 14,
               }}
             >
-              <span style={{ fontSize: 13, color: mu, fontWeight: 600 }}>
-                Total de la compra
-              </span>
-              <span style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>
-                {fmtCurrency(total)}
-              </span>
+              {globalDisc > 0 && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, color: mu }}>Subtotal</span>
+                    <span style={{ fontSize: 13, color: "#111827" }}>{fmtCurrency(subtotal)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, color: mu }}>Descuento global ({globalDisc}%)</span>
+                    <span style={{ fontSize: 13, color: rd }}>−{fmtCurrency(globalDiscAmount)}</span>
+                  </div>
+                </>
+              )}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 13, color: mu, fontWeight: 600 }}>
+                  Total de la compra
+                </span>
+                <span style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>
+                  {fmtCurrency(total)}
+                </span>
+              </div>
             </div>
 
             {total > 0 && (
@@ -3518,6 +3595,25 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
                   Registrar como un gasto en presupuesto
                 </span>
               </div>
+            )}
+            {total > 0 && !pCreateBudget && (
+              <Field label="Cubierto por">
+                <button
+                  onClick={() => setShowPCoveredBySheet(true)}
+                  style={{
+                    ...inputSt,
+                    textAlign: "left",
+                    cursor: "pointer",
+                    color: pCoveredBy ? "#111827" : "#9CA3AF",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <span>{coveredByLabel || "Seleccionar integrante..."}</span>
+                  <span style={{ color: mu, fontSize: 13 }}>›</span>
+                </button>
+              </Field>
             )}
             {purchaseError && (
               <div style={{ color: rd, fontSize: 13, marginBottom: 12 }}>
@@ -3647,6 +3743,121 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
                 {pStore === s && <span style={{ color: G, fontSize: 16 }}>✓</span>}
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── SHEET: Cubierto por (compra sin presupuesto) ── */}
+      {showPCoveredBySheet && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,.4)",
+            display: "flex",
+            alignItems: "flex-end",
+            zIndex: 1000,
+          }}
+          onClick={() => setShowPCoveredBySheet(false)}
+        >
+          <div
+            style={{
+              background: wh,
+              borderRadius: "20px 20px 0 0",
+              width: "100%",
+              paddingBottom: 32,
+              boxSizing: "border-box",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                padding: "20px 20px 12px",
+                fontSize: 15,
+                fontWeight: 700,
+                color: "#111827",
+                borderBottom: `1px solid ${bd}`,
+              }}
+            >
+              Cubierto por
+            </div>
+            {members.map((m) => {
+              const id = m.profiles.id;
+              const name = m.profiles.full_name || "Sin nombre";
+              return (
+                <button
+                  key={id}
+                  onClick={() => {
+                    setPCoveredBy(id);
+                    setShowPCoveredBySheet(false);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    width: "100%",
+                    padding: "15px 20px",
+                    border: "none",
+                    borderBottom: `1px solid ${bd}`,
+                    background: pCoveredBy === id ? `${G}0D` : "none",
+                    color: pCoveredBy === id ? G : "#111827",
+                    fontSize: 15,
+                    fontWeight: pCoveredBy === id ? 600 : 400,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {name}
+                  {pCoveredBy === id && <span style={{ color: G, fontSize: 16 }}>✓</span>}
+                </button>
+              );
+            })}
+            <div style={{ padding: "16px 20px 4px" }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: mu,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.6,
+                  marginBottom: 8,
+                }}
+              >
+                Agregar otro nombre
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="Ej. Tía Rosa"
+                  value={pCoveredByCustom}
+                  onChange={(e) => setPCoveredByCustom(e.target.value)}
+                  style={{ ...inputSt, flex: 1, minWidth: 0 }}
+                />
+                <button
+                  onClick={() => {
+                    const name = pCoveredByCustom.trim();
+                    if (!name) return;
+                    setPCoveredBy(name);
+                    setPCoveredByCustom("");
+                    setShowPCoveredBySheet(false);
+                  }}
+                  style={{
+                    padding: "10px 16px",
+                    background: G,
+                    color: wh,
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                >
+                  Usar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -4038,13 +4249,13 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
                 borderBottom: `1px solid ${bd}`,
               }}
             >
-              Tienda
+              Fuente
             </div>
-            {["", ...STORES].map((s) => (
+            {["", ...SOURCES].map((s) => (
               <button
                 key={s || "_none"}
                 onClick={() => {
-                  setRStore(s);
+                  setRSource(s);
                   setShowStoreSheet(false);
                 }}
                 style={{
@@ -4055,17 +4266,17 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
                   padding: "15px 20px",
                   border: "none",
                   borderBottom: `1px solid ${bd}`,
-                  background: rStore === s ? `${G}0D` : "none",
-                  color: rStore === s ? G : "#111827",
+                  background: rSource === s ? `${G}0D` : "none",
+                  color: rSource === s ? G : "#111827",
                   fontSize: 15,
-                  fontWeight: rStore === s ? 600 : 400,
+                  fontWeight: rSource === s ? 600 : 400,
                   cursor: "pointer",
                   textAlign: "left",
                   boxSizing: "border-box",
                 }}
               >
                 {s || "Sin especificar"}
-                {rStore === s && (
+                {rSource === s && (
                   <span style={{ color: G, fontSize: 16 }}>✓</span>
                 )}
               </button>
