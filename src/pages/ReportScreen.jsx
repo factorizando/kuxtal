@@ -17,6 +17,8 @@ const G = "#059669",
 const RANGES = [
   { label: "7 días", days: 7 },
   { label: "30 días", days: 30 },
+  { label: "45 días", days: 45 },
+  { label: "60 días", days: 60 },
   { label: "90 días", days: 90 },
   { label: "180 días", days: 180 },
 ];
@@ -101,8 +103,8 @@ function DistBar({ segments }) {
 
 function GlucoseChart({ data, cfg }) {
   if (!data.length) return null;
-  // data sorted desc; take last 60, reverse to chronological order
-  const chartData = data.slice(0, 60).reverse().map((r) => ({
+  // data sorted desc; reverse to chronological order
+  const chartData = [...data].reverse().map((r) => ({
     t: toChartLabel(r.recorded_at),
     v: r.value,
   }));
@@ -114,17 +116,17 @@ function GlucoseChart({ data, cfg }) {
   return (
     <div style={{ background: wh, border: `1px solid ${bd}`, borderRadius: 10, padding: "12px 8px 8px", marginBottom: 14 }}>
       <div style={{ fontSize: 10, color: mu, textTransform: "uppercase", fontWeight: 600, letterSpacing: 0.5, marginBottom: 6, paddingLeft: 8 }}>
-        Tendencia de glucosa (últimos {Math.min(data.length, 60)} registros)
+        Tendencia de glucosa ({data.length} registros)
       </div>
       <ResponsiveContainer width="100%" height={190}>
-        <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+        <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
           {/* Colored background zones */}
           <ReferenceArea y1={yMin} y2={Math.min(cfg.hypo, yMax)} fill="#FEE2E2" fillOpacity={0.65} ifOverflow="hidden" />
           <ReferenceArea y1={Math.max(cfg.hypo, yMin)} y2={Math.min(cfg.target_high, yMax)} fill="#DCFCE7" fillOpacity={0.6} ifOverflow="hidden" />
           <ReferenceArea y1={Math.max(cfg.target_high, yMin)} y2={Math.min(cfg.high, yMax)} fill="#FEF9C3" fillOpacity={0.65} ifOverflow="hidden" />
           <ReferenceArea y1={Math.max(cfg.high, yMin)} y2={yMax} fill="#FEE2E2" fillOpacity={0.5} ifOverflow="hidden" />
           <XAxis dataKey="t" tick={{ fontSize: 9, fill: mu }} tickLine={false} axisLine={false} interval={tickInterval} />
-          <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9, fill: mu }} tickLine={false} axisLine={false} width={38} tickFormatter={(v) => `${v}`} />
+          <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9, fill: mu }} tickLine={false} axisLine={false} width={42} tickFormatter={(v) => `${v}`} />
           <Tooltip
             formatter={(v) => [`${v} mg/dL`, "Glucosa"]}
             contentStyle={{ fontSize: 11, borderRadius: 8, border: `1px solid ${bd}` }}
@@ -155,7 +157,7 @@ function GlucoseChart({ data, cfg }) {
 
 function BPChart({ data }) {
   if (!data.length) return null;
-  const chartData = data.slice(0, 60).reverse().map((r) => ({
+  const chartData = [...data].reverse().map((r) => ({
     t: toChartLabel(r.recorded_at),
     sys: r.systolic,
     dia: r.diastolic,
@@ -168,10 +170,10 @@ function BPChart({ data }) {
   return (
     <div style={{ background: wh, border: `1px solid ${bd}`, borderRadius: 10, padding: "12px 8px 8px", marginBottom: 14 }}>
       <div style={{ fontSize: 10, color: mu, textTransform: "uppercase", fontWeight: 600, letterSpacing: 0.5, marginBottom: 6, paddingLeft: 8 }}>
-        Tendencia de presión arterial (últimos {Math.min(data.length, 60)} registros)
+        Tendencia de presión arterial ({data.length} registros)
       </div>
       <ResponsiveContainer width="100%" height={190}>
-        <ComposedChart data={chartData} margin={{ top: 4, right: 24, left: -18, bottom: 0 }}>
+        <ComposedChart data={chartData} margin={{ top: 4, right: 24, left: 0, bottom: 0 }}>
           {/* Normal zone */}
           <ReferenceArea y1={yMin} y2={Math.min(80, yMax)} fill="#DCFCE7" fillOpacity={0.4} ifOverflow="hidden" />
           {/* Threshold lines */}
@@ -188,7 +190,7 @@ function BPChart({ data }) {
               label={{ value: "180", position: "right", fontSize: 9, fill: "#DC2626" }} />
           )}
           <XAxis dataKey="t" tick={{ fontSize: 9, fill: mu }} tickLine={false} axisLine={false} interval={tickInterval} />
-          <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9, fill: mu }} tickLine={false} axisLine={false} width={38} />
+          <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9, fill: mu }} tickLine={false} axisLine={false} width={42} />
           <Tooltip
             formatter={(v, name) => [`${v} mmHg`, name === "sys" ? "Sistólica" : "Diastólica"]}
             contentStyle={{ fontSize: 11, borderRadius: 8, border: `1px solid ${bd}` }}
