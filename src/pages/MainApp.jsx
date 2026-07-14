@@ -326,10 +326,16 @@ export default function MainApp({
   const chartGlu = gluReadings
     .slice(0, 10)
     .reverse()
-    .map((r) => ({
-      t: (() => { const d = new Date(r.recorded_at); const p = n => String(n).padStart(2,"0"); return `${p(d.getHours())}:${p(d.getMinutes())}`; })(),
-      v: r.value,
-    }));
+    .map((r) => {
+      const d = new Date(r.recorded_at);
+      const p = (n) => String(n).padStart(2, "0");
+      const months = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+      return {
+        t: `${p(d.getHours())}:${p(d.getMinutes())}`,
+        date: `${d.getDate()} ${months[d.getMonth()]}`,
+        v: r.value,
+      };
+    });
 
   const avg = gluReadings.length
     ? Math.round(
@@ -877,7 +883,7 @@ export default function MainApp({
                   <ResponsiveContainer width="100%" height={140}>
                     <AreaChart
                       data={chartGlu}
-                      margin={{ top: 8, right: 4, left: -28, bottom: 0 }}
+                      margin={{ top: 8, right: 4, left: -28, bottom: 16 }}
                     >
                       <defs>
                         <linearGradient id="gG" x1="0" y1="0" x2="0" y2="1">
@@ -887,10 +893,23 @@ export default function MainApp({
                       </defs>
                       <XAxis
                         dataKey="t"
-                        tick={{ fontSize: 9, fill: mu }}
                         tickLine={false}
                         axisLine={false}
-                        interval={1}
+                        interval={0}
+                        height={30}
+                        tick={({ x, y, payload }) => {
+                          const datum = chartGlu.find((d) => d.t === payload.value);
+                          return (
+                            <g transform={`translate(${x},${y})`}>
+                              <text textAnchor="middle" dy={-4} style={{ fontSize: 8, fill: mu }}>
+                                {datum?.date || ""}
+                              </text>
+                              <text textAnchor="middle" dy={8} style={{ fontSize: 9, fill: mu }}>
+                                {payload.value}
+                              </text>
+                            </g>
+                          );
+                        }}
                       />
                       <YAxis
                         domain={[40, 360]}
