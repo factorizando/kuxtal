@@ -46,7 +46,7 @@ function toChartLabel(isoStr) {
 
 function Section({ title, accent, children }) {
   return (
-    <div style={{ marginBottom: 32 }}>
+    <div className="report-section" style={{ marginBottom: 32 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <div style={{ width: 4, height: 20, background: accent, borderRadius: 2 }} />
         <span style={{ fontSize: 17, fontWeight: 700, color: tx }}>{title}</span>
@@ -58,16 +58,16 @@ function Section({ title, accent, children }) {
 
 function StatCard({ label, value, unit, color }) {
   return (
-    <div style={{
-      flex: "1 1 90px",
+    <div className="stat-card" style={{
+      flex: "1 1 100px",
       background: wh,
-      border: `1px solid ${bd}`,
-      borderRadius: 10,
-      padding: "10px 12px",
+      borderBottom: `2px solid ${bd}`,
+      padding: "8px 10px",
+      textAlign: "center",
     }}>
-      <div style={{ fontSize: 10, color: mu, textTransform: "uppercase", fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
-      {unit && <div style={{ fontSize: 11, color: mu, marginTop: 3 }}>{unit}</div>}
+      <div style={{ fontSize: 9, color: mu, fontWeight: 600, letterSpacing: 0.3, marginBottom: 3 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+      {unit && <div style={{ fontSize: 10, color: mu, marginTop: 2 }}>{unit}</div>}
     </div>
   );
 }
@@ -82,7 +82,7 @@ function DistBar({ segments }) {
       </div>
       <div style={{ display: "flex", height: 20, borderRadius: 6, overflow: "hidden", marginBottom: 6 }}>
         {active.map((s, i) => (
-          <div key={i} style={{ width: `${s.pct}%`, background: s.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div key={i} style={{ width: `${s.pct}%`, background: s.color, display: "flex", alignItems: "center", justifyContent: "center", borderRight: i < active.length - 1 ? "1px solid rgba(255,255,255,.5)" : "none" }}>
             {s.pct >= 10 && (
               <span style={{ fontSize: 10, color: wh, fontWeight: 700 }}>{Math.round(s.pct)}%</span>
             )}
@@ -347,6 +347,11 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
           body { background: white !important; }
           @page { size: A4; margin: 1.5cm; }
           * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .report-section { page-break-inside: avoid; }
+          .stat-card { border-bottom-width: 1px !important; }
+          table { font-size: 11px !important; }
+          th { font-size: 10px !important; }
+          .recharts-wrapper { page-break-inside: avoid; }
         }
       `}</style>
 
