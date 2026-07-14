@@ -5,6 +5,7 @@ import { useSwipe } from "../hooks/useSwipe";
 import { useInventory, calcDaysRemaining } from "../hooks/useInventory";
 import { useAuditLog } from "../hooks/useAuditLog";
 import { useRequests } from "../hooks/useRequests";
+import { supabase } from "../lib/supabase";
 import Sheet from "../components/Sheet";
 
 const G = "#059669",
@@ -407,12 +408,19 @@ function PhotoPicker({ id, preview, onFile, onClear }) {
 }
 
 function InventoryItemCard({ item, onDetail }) {
+  const inactive = item.active === false;
   const days = calcDaysRemaining(item);
-  const isUrgent = days < item.alert_threshold_days;
-  const isWarning = !isUrgent && days < item.alert_threshold_days * 2;
-  const statusColor = isUrgent ? rd : isWarning ? am : G;
-  const fillPct = Math.min(100, (days / (item.alert_threshold_days * 3)) * 100);
-  const daysLabel = days < 1 ? "Sin stock" : `${Math.round(days)} días`;
+  const isUrgent = !inactive && days < item.alert_threshold_days;
+  const isWarning = !inactive && !isUrgent && days < item.alert_threshold_days * 2;
+  const statusColor = inactive ? mu : isUrgent ? rd : isWarning ? am : G;
+  const fillPct = inactive
+    ? 0
+    : Math.min(100, (days / (item.alert_threshold_days * 3)) * 100);
+  const daysLabel = inactive
+    ? "Sin pautas"
+    : days < 1
+      ? "Sin stock"
+      : `${Math.round(days)} días`;
 
   return (
     <div
@@ -425,6 +433,7 @@ function InventoryItemCard({ item, onDetail }) {
         borderLeft: `4px solid ${statusColor}`,
         cursor: "pointer",
         WebkitTapHighlightColor: "transparent",
+        opacity: inactive ? 0.55 : 1,
       }}
     >
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -442,11 +451,29 @@ function InventoryItemCard({ item, onDetail }) {
           />
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>
-            {item.name}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>
+              {item.name}
+            </span>
+            {inactive && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: mu,
+                  background: "#F3F4F6",
+                  padding: "1px 6px",
+                  borderRadius: 4,
+                }}
+              >
+                INACTIVO
+              </span>
+            )}
           </div>
           <div style={{ fontSize: 12, color: mu, marginTop: 2 }}>
-            {item.consumption_per_day} {item.unit}/día
+            {inactive
+              ? `${item.consumption_per_day} ${item.unit}/día (última)`
+              : `${item.consumption_per_day} ${item.unit}/día`}
             {item.units_per_pack && (
               <span> · 📦 cajas de {item.units_per_pack}</span>
             )}
@@ -472,7 +499,7 @@ function InventoryItemCard({ item, onDetail }) {
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 12, color: statusColor, fontWeight: 600 }}>
-              {isUrgent && days >= 1 ? "⚠️ " : ""}
+              {!inactive && isUrgent && days >= 1 ? "⚠️ " : ""}
               {daysLabel}
             </span>
             <span style={{ fontSize: 11, color: mu }}>Ver detalle ›</span>
@@ -683,6 +710,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
     updateRestockAndAdjustStock,
     generateMedInfo,
     saveMedInfo,
+    refetch: invRefetch,
   } = useInventory(activeGroup?.id);
 
   const { logEntries, logLoading, logAction, fetchLog } = useAuditLog(activeGroup?.id, userId);
@@ -770,6 +798,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState(null);
   const [unitSheetTarget, setUnitSheetTarget] = useState("add");
+  const [invFilter, setInvFilter] = useState("active");
 
   const [rQuantity, setRQuantity] = useState("");
   const [rBoxes, setRBoxes] = useState("");
@@ -861,11 +890,15 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
   const totalBalance = totalIncome - totalExpense;
 
   // ── Inventario calcs ──────────────────────────────────────
-  const sortedItems = [...invItems].sort(
-    (a, b) => calcDaysRemaining(a) - calcDaysRemaining(b),
-  );
+  const filteredItems = invFilter === "all"
+    ? invItems
+    : invItems.filter((i) => invFilter === "active" ? i.active !== false : i.active === false);
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    if (a.active !== b.active) return a.active ? -1 : 1;
+    return calcDaysRemaining(a) - calcDaysRemaining(b);
+  });
   const urgentCount = invItems.filter(
-    (i) => calcDaysRemaining(i) < i.alert_threshold_days,
+    (i) => i.active !== false && calcDaysRemaining(i) < i.alert_threshold_days,
   ).length;
 
   const pendingRequests = useMemo(
@@ -1952,6 +1985,34 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
             </div>
           )}
 
+          {invItems.length > 0 && (
+            <div style={{ display: "flex", gap: 6 }}>
+              {[
+                ["active", "Activos"],
+                ["inactive", "Inactivos"],
+                ["all", "Todos"],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setInvFilter(key)}
+                  style={{
+                    flex: 1,
+                    padding: "7px 0",
+                    borderRadius: 8,
+                    border: `1px solid ${invFilter === key ? G : bd}`,
+                    background: invFilter === key ? G : wh,
+                    color: invFilter === key ? wh : mu,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {canEdit && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {invItems.length > 0 && (
@@ -2026,7 +2087,11 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
             >
               <div style={{ fontSize: 36, marginBottom: 12 }}>📦</div>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                Sin artículos en inventario
+                {invFilter === "inactive"
+                  ? "No hay artículos inactivos"
+                  : invFilter === "active" && invItems.length > 0
+                    ? "No hay artículos activos"
+                    : "Sin artículos en inventario"}
               </div>
               <div style={{ fontSize: 12 }}>
                 Agrega medicamentos y suministros para llevar el control de
@@ -3952,6 +4017,78 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
 
           {(() => {
             const it = invItems.find((i) => i.id === showDetail.id) || showDetail;
+            const isActive = it.active !== false;
+            return (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  background: isActive ? `${G}0D` : "#F9FAFB",
+                  border: `1px solid ${isActive ? `${G}33` : bd}`,
+                  borderRadius: 10,
+                  padding: "10px 14px",
+                  marginBottom: 16,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>
+                    {isActive ? "Activo" : "Inactivo"}
+                  </div>
+                  <div style={{ fontSize: 11, color: mu, marginTop: 1 }}>
+                    {isActive
+                      ? "Se reabastene y genera alertas"
+                      : "Sin pautas — no genera alertas"}
+                  </div>
+                </div>
+                {canEdit && (
+                  <button
+                    onClick={async () => {
+                      const newVal = !isActive;
+                      try {
+                        await supabase
+                          .from("inventory_items")
+                          .update({ active: newVal })
+                          .eq("id", it.id);
+                        await invRefetch();
+                        setShowDetail({ ...it, active: newVal });
+                      } catch (e) {
+                        console.error("toggle active:", e);
+                      }
+                    }}
+                    style={{
+                      width: 48,
+                      height: 28,
+                      borderRadius: 14,
+                      border: "none",
+                      background: isActive ? G : "#D1D5DB",
+                      cursor: "pointer",
+                      position: "relative",
+                      transition: "background .2s",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 11,
+                        background: wh,
+                        position: "absolute",
+                        top: 3,
+                        left: isActive ? 23 : 3,
+                        transition: "left .2s",
+                        boxShadow: "0 1px 3px rgba(0,0,0,.15)",
+                      }}
+                    />
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          {(() => {
+            const it = invItems.find((i) => i.id === showDetail.id) || showDetail;
             const hasInfo = it.indication || it.side_effects;
             return (
               <div style={{ marginBottom: 20 }}>
@@ -4050,7 +4187,7 @@ export default function BudgetScreen({ userId, onSwipeScreen }) {
                       <div style={{ color: rd, fontSize: 12, marginBottom: 10 }}>{infoError}</div>
                     )}
 
-                    {canEdit && (
+          {canEdit && (
                       <div style={{ display: "flex", gap: 8 }}>
                         <button
                           onClick={() => handleGenInfo(it)}

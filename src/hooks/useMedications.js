@@ -81,8 +81,8 @@ export function useMedications(groupId, userId) {
 
   // ── Stock: deriva consumption_per_day del item desde sus pautas activas ──
   // Re-ancla el item (descuenta lo consumido a la tasa vieja hasta ahora) y
-  // fija la nueva tasa. Si la suma es 0 (todo as_needed o suspendido), deja
-  // el consumption_per_day como estaba (la columna tiene check > 0).
+  // fija la nueva tasa. Si la suma es 0 (todo as_needed o suspendido), solo
+  // desactiva el item (la columna consumption_per_day tiene check > 0).
   const recalcItemConsumption = useCallback(async (itemId) => {
     const today = todayStr();
     const { data: schs, error: schErr } = await supabase
@@ -97,7 +97,14 @@ export function useMedications(groupId, userId) {
         s.start_date <= today && (!s.end_date || s.end_date >= today)
     );
     const perDay = vigentes.reduce((sum, s) => sum + dailyDose(s), 0);
-    if (perDay <= 0) return; // no actualizar (check > 0; mantener tasa previa)
+    if (perDay <= 0) {
+      // Sin pautas vigentes → desactivar item (no tocar consumption_per_day)
+      await supabase
+        .from("inventory_items")
+        .update({ active: false })
+        .eq("id", itemId);
+      return;
+    }
 
     const { data: item, error: itemErr } = await supabase
       .from("inventory_items")
@@ -119,6 +126,7 @@ export function useMedications(groupId, userId) {
         current_quantity: parseFloat(reanchored.toFixed(3)),
         consumption_per_day: parseFloat(perDay.toFixed(3)),
         quantity_updated_at: new Date().toISOString(),
+        active: true,
       })
       .eq("id", itemId);
     if (updErr) throw updErr;
