@@ -44,9 +44,9 @@ function toChartLabel(isoStr) {
 
 // ─── Sub-components (module level) ───────────────────────────────────────────
 
-function Section({ title, accent, children }) {
+function Section({ title, accent, className, children }) {
   return (
-    <div className="report-section" style={{ marginBottom: 32 }}>
+    <div className={className ? `${className} report-section` : "report-section"} style={{ marginBottom: 32 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <div style={{ width: 4, height: 20, background: accent, borderRadius: 2 }} />
         <span style={{ fontSize: 17, fontWeight: 700, color: tx }}>{title}</span>
@@ -125,6 +125,18 @@ function GlucoseChart({ data, cfg }) {
           <ReferenceArea y1={Math.max(cfg.hypo, yMin)} y2={Math.min(cfg.target_high, yMax)} fill="#DCFCE7" fillOpacity={0.6} ifOverflow="hidden" />
           <ReferenceArea y1={Math.max(cfg.target_high, yMin)} y2={Math.min(cfg.high, yMax)} fill="#FEF9C3" fillOpacity={0.65} ifOverflow="hidden" />
           <ReferenceArea y1={Math.max(cfg.high, yMin)} y2={yMax} fill="#FEE2E2" fillOpacity={0.5} ifOverflow="hidden" />
+          {cfg.hypo >= yMin && cfg.hypo <= yMax && (
+            <ReferenceLine y={cfg.hypo} stroke="#DC2626" strokeDasharray="4 3" strokeWidth={1}
+              label={{ value: `${cfg.hypo}`, position: "right", fontSize: 9, fill: "#DC2626" }} />
+          )}
+          {cfg.target_high >= yMin && cfg.target_high <= yMax && (
+            <ReferenceLine y={cfg.target_high} stroke="#D97706" strokeDasharray="4 3" strokeWidth={1}
+              label={{ value: `${cfg.target_high}`, position: "right", fontSize: 9, fill: "#D97706" }} />
+          )}
+          {cfg.high >= yMin && cfg.high <= yMax && (
+            <ReferenceLine y={cfg.high} stroke="#B91C1C" strokeDasharray="4 3" strokeWidth={1}
+              label={{ value: `${cfg.high}`, position: "right", fontSize: 9, fill: "#B91C1C" }} />
+          )}
           <XAxis dataKey="t" tick={{ fontSize: 9, fill: mu }} tickLine={false} axisLine={false} interval={tickInterval} />
           <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9, fill: mu }} tickLine={false} axisLine={false} width={42} tickFormatter={(v) => `${v}`} />
           <Tooltip
@@ -347,11 +359,12 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
           body { background: white !important; }
           @page { size: A4; margin: 1.5cm; }
           * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .report-section { page-break-inside: avoid; }
-          .stat-card { border-bottom-width: 1px !important; }
-          table { font-size: 11px !important; }
-          th { font-size: 10px !important; }
+          .stat-card-row { page-break-inside: avoid; }
           .recharts-wrapper { page-break-inside: avoid; }
+          .recharts-reference-area rect { fill-opacity: 0.1 !important; }
+          .ranges-info { background: transparent !important; border: 1px solid #9CA3AF !important; }
+          .bp-section { page-break-before: always; }
+          th { background: #F3F4F6 !important; }
         }
       `}</style>
 
@@ -433,7 +446,7 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
               <div style={{ marginTop: 6, color: tx }}>Médico: ________________________</div>
             </div>
           </div>
-          <div style={{ marginTop: 12, fontSize: 11, color: mu, background: "#F9FAFB", border: `1px solid ${bd}`, borderRadius: 6, padding: "6px 10px" }}>
+          <div className="ranges-info" style={{ marginTop: 12, fontSize: 11, color: mu, background: "#F9FAFB", border: `1px solid ${bd}`, borderRadius: 6, padding: "6px 10px" }}>
             Rangos personalizados — Hipoglucemia: &lt;{cfg.hypo} mg/dL · Meta: {cfg.hypo}–{cfg.target_high} mg/dL · Elevada: {cfg.target_high}–{cfg.high} mg/dL · Muy elevada: &gt;{cfg.high} mg/dL
           </div>
         </div>
@@ -452,7 +465,7 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
                 <div style={{ color: mu, fontSize: 13, padding: "12px 0" }}>Sin registros de glucosa en este período.</div>
               ) : (
                 <>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                  <div className="stat-card-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
                     <StatCard label="Promedio" value={Math.round(gluStats.avg)} unit="mg/dL" color={gluAvgStatus.color} />
                     <StatCard
                       label="Tiempo en rango"
@@ -468,7 +481,7 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
                     />
                     <StatCard label="Variabilidad (DE)" value={Math.round(gluStats.stddev)} unit="mg/dL" color={tx} />
                   </div>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+                  <div className="stat-card-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
                     <StatCard label="Mínimo" value={gluStats.min} unit="mg/dL" color={gluStats.min < cfg.hypo ? "#DC2626" : tx} />
                     <StatCard label="Máximo" value={gluStats.max} unit="mg/dL" color={gluStats.max > cfg.high ? "#DC2626" : tx} />
                     <StatCard label="Total registros" value={gluStats.n} unit="en el período" color={tx} />
@@ -495,12 +508,12 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
             </Section>}
 
             {/* ── BLOOD PRESSURE ── */}
-            {showBP && <Section title="Presión arterial" accent="#7C3AED">
+            {showBP && <Section title="Presión arterial" accent="#7C3AED" className={showGlu ? "bp-section" : undefined}>
               {!bpStats ? (
                 <div style={{ color: mu, fontSize: 13, padding: "12px 0" }}>Sin registros de presión en este período.</div>
               ) : (
                 <>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+                  <div className="stat-card-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
                     <StatCard label="Promedio sistólica" value={`${Math.round(bpStats.avgSys)}`} unit="mmHg" color={tx} />
                     <StatCard label="Promedio diastólica" value={`${Math.round(bpStats.avgDia)}`} unit="mmHg" color={tx} />
                     <StatCard
