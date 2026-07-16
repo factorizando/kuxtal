@@ -114,12 +114,12 @@ function GlucoseChart({ data, cfg }) {
   const tickInterval = Math.max(0, Math.floor(chartData.length / 7) - 1);
 
   return (
-    <div style={{ background: wh, border: `1px solid ${bd}`, borderRadius: 10, padding: "12px 8px 8px", marginBottom: 14 }}>
+    <div style={{ background: wh, border: `1px solid ${bd}`, borderRadius: 10, padding: "12px 8px 8px", marginBottom: 14, overflow: "hidden" }}>
       <div style={{ fontSize: 10, color: mu, textTransform: "uppercase", fontWeight: 600, letterSpacing: 0.5, marginBottom: 6, paddingLeft: 8 }}>
         Tendencia de glucosa ({data.length} registros)
       </div>
       <ResponsiveContainer width="100%" height={190}>
-        <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+        <ComposedChart data={chartData} margin={{ top: 4, right: 30, left: 0, bottom: 0 }}>
           {/* Colored background zones */}
           <ReferenceArea y1={yMin} y2={Math.min(cfg.hypo, yMax)} fill="#FEE2E2" fillOpacity={0.65} ifOverflow="hidden" />
           <ReferenceArea y1={Math.max(cfg.hypo, yMin)} y2={Math.min(cfg.target_high, yMax)} fill="#DCFCE7" fillOpacity={0.6} ifOverflow="hidden" />
@@ -360,7 +360,7 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
           @page { size: A4; margin: 1.5cm; }
           * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .stat-card-row { page-break-inside: avoid; }
-          .recharts-wrapper { page-break-inside: avoid; }
+          .recharts-wrapper { page-break-inside: avoid; overflow: hidden; max-width: 100%; }
           .recharts-reference-area rect { fill-opacity: 0.1 !important; }
           .ranges-info { background: transparent !important; border: 1px solid #9CA3AF !important; }
           .bp-section { page-break-before: always; }
