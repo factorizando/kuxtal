@@ -119,7 +119,7 @@ function GlucoseChart({ data, cfg }) {
         Tendencia de glucosa ({data.length} registros)
       </div>
       <ResponsiveContainer width="100%" height={190}>
-        <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+        <ComposedChart data={chartData} margin={{ top: 4, right: 30, left: 0, bottom: 0 }}>
           {/* Colored background zones */}
           <ReferenceArea y1={yMin} y2={Math.min(cfg.hypo, yMax)} fill="#FEE2E2" fillOpacity={0.65} ifOverflow="hidden" />
           <ReferenceArea y1={Math.max(cfg.hypo, yMin)} y2={Math.min(cfg.target_high, yMax)} fill="#DCFCE7" fillOpacity={0.6} ifOverflow="hidden" />
