@@ -119,7 +119,7 @@ function GlucoseChart({ data, cfg }) {
         Tendencia de glucosa ({data.length} registros)
       </div>
       <ResponsiveContainer width="100%" height={190}>
-        <ComposedChart data={chartData} margin={{ top: 4, right: 30, left: 0, bottom: 0 }}>
+        <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
           {/* Colored background zones */}
           <ReferenceArea y1={yMin} y2={Math.min(cfg.hypo, yMax)} fill="#FEE2E2" fillOpacity={0.65} ifOverflow="hidden" />
           <ReferenceArea y1={Math.max(cfg.hypo, yMin)} y2={Math.min(cfg.target_high, yMax)} fill="#DCFCE7" fillOpacity={0.6} ifOverflow="hidden" />
@@ -127,15 +127,15 @@ function GlucoseChart({ data, cfg }) {
           <ReferenceArea y1={Math.max(cfg.high, yMin)} y2={yMax} fill="#FEE2E2" fillOpacity={0.5} ifOverflow="hidden" />
           {cfg.hypo >= yMin && cfg.hypo <= yMax && (
             <ReferenceLine y={cfg.hypo} stroke="#DC2626" strokeDasharray="4 3" strokeWidth={1}
-              label={{ value: `${cfg.hypo}`, position: "right", fontSize: 9, fill: "#DC2626" }} />
+              label={{ value: `${cfg.hypo}`, position: "insideRight", fontSize: 9, fill: "#DC2626" }} />
           )}
           {cfg.target_high >= yMin && cfg.target_high <= yMax && (
             <ReferenceLine y={cfg.target_high} stroke="#D97706" strokeDasharray="4 3" strokeWidth={1}
-              label={{ value: `${cfg.target_high}`, position: "right", fontSize: 9, fill: "#D97706" }} />
+              label={{ value: `${cfg.target_high}`, position: "insideRight", fontSize: 9, fill: "#D97706" }} />
           )}
           {cfg.high >= yMin && cfg.high <= yMax && (
             <ReferenceLine y={cfg.high} stroke="#B91C1C" strokeDasharray="4 3" strokeWidth={1}
-              label={{ value: `${cfg.high}`, position: "right", fontSize: 9, fill: "#B91C1C" }} />
+              label={{ value: `${cfg.high}`, position: "insideRight", fontSize: 9, fill: "#B91C1C" }} />
           )}
           <XAxis dataKey="t" tick={{ fontSize: 9, fill: mu }} tickLine={false} axisLine={false} interval={tickInterval} />
           <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9, fill: mu }} tickLine={false} axisLine={false} width={42} tickFormatter={(v) => `${v}`} />
