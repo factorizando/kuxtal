@@ -359,8 +359,9 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
           body { background: white !important; }
           @page { size: A4; margin: 1.5cm; }
           * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .report-body { max-width: 100% !important; width: 100% !important; overflow: hidden !important; }
           .stat-card-row { page-break-inside: avoid; }
-          .recharts-wrapper { page-break-inside: avoid; }
+          .recharts-wrapper { page-break-inside: avoid; width: 100% !important; }
           .recharts-reference-area rect { fill-opacity: 0.1 !important; }
           .ranges-info { background: transparent !important; border: 1px solid #9CA3AF !important; }
           .bp-section { page-break-before: always; }
@@ -429,7 +430,7 @@ export default function ReportScreen({ userId, profile, viewingPatient, onSwipeS
       </div>
 
       {/* Report body */}
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "20px 16px 40px", overflowX: "hidden" }}>
+      <div className="report-body" style={{ maxWidth: 720, margin: "0 auto", padding: "20px 16px 40px" }}>
 
         {/* Report header */}
         <div style={{ marginBottom: 24, borderBottom: `3px solid ${G}`, paddingBottom: 16 }}>
